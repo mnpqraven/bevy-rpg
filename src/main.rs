@@ -6,24 +6,36 @@ fn main() {
             title: "bevy-rpg".to_string(),
             ..default()
         })
-        .add_startup_system_set( // unit archetype
+        .add_plugins(DefaultPlugins)
+        .add_startup_system_to_stage(StartupStage::PreStartup, load_ascii)
+        .add_startup_system_set_to_stage(
+            StartupStage::PostStartup,
+            // unit archetype
             SystemSet::new()
+                // .with_system(load_single_ascii)
+                .with_system(setup)
                 .with_system(spawn_player)
                 .with_system(spawn_enemy),
         )
-        .add_startup_system_set( // skil larchetype
-            SystemSet::new()
-                .with_system(spawn_skill_basic_attack)
-                .with_system(spawn_skill_basic_block)
-                .with_system(spawn_skill_basic_heal),
-        )
-        .add_system(get_player_name)
+        .add_system(bevy::window::close_on_esc)
         .add_system_set(
-            SystemSet::new()
-                .with_system(calc_block)
-                .with_system(calc_damage.after(calc_block))
-                .with_system(calc_heal),
+            // sprite movement
+            SystemSet::new().with_system(logic_input_movement),
         )
+        // .add_startup_system_set(
+        //     // skil larchetype
+        //     SystemSet::new()
+        //         .with_system(spawn_skill_basic_attack)
+        //         .with_system(spawn_skill_basic_block)
+        //         .with_system(spawn_skill_basic_heal),
+        // )
+        // .add_system(get_player_name)
+        // .add_system_set(
+        //     SystemSet::new()
+        //         .with_system(calc_block)
+        //         .with_system(calc_damage.after(calc_block))
+        //         .with_system(calc_heal),
+        // )
         .run();
 }
 
@@ -80,6 +92,16 @@ impl Default for Block {
 struct Heal {
     value: i32,
 }
+/// CP, movement direction, should(?) be linked with keyboard input
+#[derive(Component)]
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+#[derive(Component)]
+struct IsMoving(bool);
 
 // ENTITY =====================================================================
 // RESOURCE ===================================================================
@@ -98,16 +120,64 @@ struct CharacterBundle {
 }
 
 // SYSTEM =====================================================================
-fn spawn_player(mut commands: Commands) {
+fn setup(mut commands: Commands) {
+    commands.spawn_bundle(Camera2dBundle::default());
+}
+fn load_single_ascii(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
-        .spawn()
+        .spawn_bundle(SpriteBundle {
+            texture: asset_server.load("icon.png"),
+            ..default()
+        })
+        .insert(Player)
+        .insert(IsMoving(false));
+}
+/// Resource
+/// contains ascii sheets in assets folder,
+/// can be accessed with `texture_atlas` in `SpriteSheetBundle`
+struct AsciiSheet(Handle<TextureAtlas>);
+/// load the ascii sheets, this must be done in the system startup @`PreStartup` stage
+fn load_ascii(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas: ResMut<Assets<TextureAtlas>>
+) {
+    let texture_handle = asset_server.load("ascii.png");
+    let atlas = TextureAtlas::from_grid_with_padding(
+        texture_handle,
+        Vec2::splat(9.),
+        16,
+        16,
+        Vec2::splat(2.),
+        Vec2::splat(0.)
+    );
+    let texture_atlas_handle = texture_atlas.add(atlas);
+    commands.insert_resource(AsciiSheet(texture_atlas_handle));
+}
+fn spawn_player(mut commands: Commands,
+    ascii: Res<AsciiSheet>,
+) {
+
+    commands
+        .spawn_bundle(
+            SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    index: 1,
+                    ..default()
+                },
+                texture_atlas: ascii.0.clone(),
+                transform: Transform::from_scale(Vec3::splat(8.)),
+                ..default()
+            }
+        )
         .insert(Player)
         .insert(Name {
             name: "Othi".to_string(),
         })
         .insert(Health { value: 100 })
         .insert(MaxHealth { value: 100 })
-        .insert(Block::default());
+        .insert(Block::default())
+        .insert(IsMoving(false));
 }
 fn spawn_enemy(mut commands: Commands) {
     commands
@@ -238,4 +308,31 @@ fn _test_loop() {
     // player getting attacked by "Attack"
     // automatically casts "Bandaid" when health is < 50%
     // automatically casts "Block" when health is < 25%
+}
+
+/// transform sprite based on position in the last frame
+/// TODO: refactor
+fn logic_input_movement(
+    time: Res<Time>,
+    mut sprite_pos: Query<(&mut IsMoving, &mut Transform), With<Player>>,
+    input: Res<Input<KeyCode>>,
+) {
+    for (mut is_moving, mut transform) in &mut sprite_pos {
+        // let mut dir: Direction = Direction::Down; // facing the screen
+        let dir: Direction = match input.get_pressed().next() {
+            Some(KeyCode::W) => { is_moving.0 = true; Direction::Up }
+            Some(KeyCode::R) => { is_moving.0 = true; Direction::Down }
+            Some(KeyCode::A) => { is_moving.0 = true; Direction::Left }
+            Some(KeyCode::S) => { is_moving.0 = true; Direction::Right }
+            _ => { is_moving.0 = false; Direction::Down } // stops moving
+        };
+        if is_moving.0 {
+            match dir {
+                Direction::Up => transform.translation.y += 150. * time.delta_seconds(),
+                Direction::Down => transform.translation.y -= 150. * time.delta_seconds(),
+                Direction::Left => transform.translation.x -= 150. * time.delta_seconds(),
+                Direction::Right => transform.translation.x += 150. * time.delta_seconds(),
+            }
+        }
+    }
 }
