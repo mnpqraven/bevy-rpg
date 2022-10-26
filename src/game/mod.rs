@@ -35,7 +35,7 @@ struct EnemySelectedSkill;
 // TODO: transform into event-based systems with buttons
 fn hello() {
     // frame-based system
-    info!("hello from GamePlugin");
+    // info!("hello from GamePlugin");
 }
 fn is_in_combat(game_state: Res<GameState>) -> bool {
     *game_state == GameState::InCombat
@@ -45,5 +45,5 @@ fn is_in_env(game_state: Res<GameState>) -> bool {
 }
 
 fn hello_combat() {
-    info!("hello from GamePlugin but you're in combat!");
+    // info!("hello from GamePlugin but you're in combat!");
 }

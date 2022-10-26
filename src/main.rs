@@ -2,6 +2,7 @@ use bevy::{log::LogSettings, prelude::*};
 // modules
 mod game;
 mod menu;
+mod skills;
 
 fn main() {
     App::new()
@@ -18,6 +19,7 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(crate::menu::MenuPlugin)
+        .add_plugin(crate::skills::SkillPlugin)
         .add_plugin(crate::game::GamePlugin)
         .add_startup_system_to_stage(StartupStage::PreStartup, load_ascii)
         .add_system(bevy::window::close_on_esc)
@@ -29,12 +31,8 @@ fn main() {
                 .with_system(spawn_player)
                 .with_system(spawn_enemy),
         )
-        // .add_startup_system_set( // skil larchetype
-        //     SystemSet::new()
-        //         .with_system(spawn_skill_basic_attack)
-        //         .with_system(spawn_skill_basic_block)
-        //         .with_system(spawn_skill_basic_heal),
-        // )
+        .add_system_set(SystemSet::new().with_system(logic_input_movement))
+        // TODO: turn base queueing
         // .add_system(get_player_name)
         // .add_system_set(
         //     SystemSet::new()
@@ -55,13 +53,13 @@ struct Player;
 struct Enemy;
 
 /// CP
-#[derive(Component, Clone)]
+#[derive(Component, Clone, Debug)]
 struct Name {
     name: String,
 }
 
 /// CP
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct Skill;
 
 // STATS ============
@@ -126,8 +124,8 @@ struct CharacterBundle {
 }
 
 // SYSTEM =====================================================================
-fn setup(mut commands: Commands) {
-}
+fn setup(mut commands: Commands) {}
+/// bevy logo
 fn load_single_ascii(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn_bundle(SpriteBundle {
@@ -191,33 +189,6 @@ fn spawn_enemy(mut commands: Commands) {
         .insert(Block::default());
 }
 
-fn spawn_skill_basic_attack(mut commands: Commands) {
-    commands
-        .spawn()
-        .insert(Skill)
-        .insert(Name {
-            name: "Attack".to_string(),
-        })
-        .insert(Damage { value: 7 });
-}
-fn spawn_skill_basic_block(mut commands: Commands) {
-    commands
-        .spawn()
-        .insert(Skill)
-        .insert(Name {
-            name: "Block".to_string(),
-        })
-        .insert(Block { value: 5 });
-}
-fn spawn_skill_basic_heal(mut commands: Commands) {
-    commands
-        .spawn()
-        .insert(Skill)
-        .insert(Name {
-            name: "Bandaid".to_string(),
-        })
-        .insert(Heal { value: 5 });
-}
 fn get_player_name(mut players: Query<(&Health, &Name, Option<&Player>)>) {
     for (health, name, player) in players.iter_mut() {
         println!(
