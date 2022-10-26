@@ -1,5 +1,5 @@
 [package]
-name = "bevy-playground"
+name = "othirpg"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,6 +15,7 @@ resolver = "2"
 
 [dependencies]
 bevy = { version = "0.8.1", features = ["dynamic"] }
+iyes_loopless = "0.8.0"
 rand = "0.8.5"
 serde = "1.0.146"
 serde_json = "1.0.87"

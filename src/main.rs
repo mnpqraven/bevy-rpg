@@ -1,29 +1,35 @@
-use bevy::prelude::*;
+use bevy::{log::LogSettings, prelude::*};
+// modules
+mod game;
+mod menu;
+
 fn main() {
     App::new()
         // .add_plugins(DefaultPlugins)
         .insert_resource(WindowDescriptor {
             title: "bevy-rpg".to_string(),
+            width: 800.,
+            height: 600.,
             ..default()
         })
+        .insert_resource(LogSettings {
+            filter: "info,wgpu_core=warn,wgpu_hal=warn,othirpg=debug".into(),
+            level: bevy::log::Level::DEBUG,
+        })
         .add_plugins(DefaultPlugins)
+        .add_plugin(crate::menu::MenuPlugin)
+        .add_plugin(crate::game::GamePlugin)
         .add_startup_system_to_stage(StartupStage::PreStartup, load_ascii)
+        .add_system(bevy::window::close_on_esc)
         .add_startup_system_set_to_stage(
             StartupStage::PostStartup,
-            // unit archetype
             SystemSet::new()
-                // .with_system(load_single_ascii)
+                // unit archetype
                 .with_system(setup)
                 .with_system(spawn_player)
                 .with_system(spawn_enemy),
         )
-        .add_system(bevy::window::close_on_esc)
-        .add_system_set(
-            // sprite movement
-            SystemSet::new().with_system(logic_input_movement),
-        )
-        // .add_startup_system_set(
-        //     // skil larchetype
+        // .add_startup_system_set( // skil larchetype
         //     SystemSet::new()
         //         .with_system(spawn_skill_basic_attack)
         //         .with_system(spawn_skill_basic_block)
@@ -121,7 +127,6 @@ struct CharacterBundle {
 
 // SYSTEM =====================================================================
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
 }
 fn load_single_ascii(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
@@ -140,7 +145,7 @@ struct AsciiSheet(Handle<TextureAtlas>);
 fn load_ascii(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut texture_atlas: ResMut<Assets<TextureAtlas>>
+    mut texture_atlas: ResMut<Assets<TextureAtlas>>,
 ) {
     let texture_handle = asset_server.load("ascii.png");
     let atlas = TextureAtlas::from_grid_with_padding(
@@ -149,27 +154,22 @@ fn load_ascii(
         16,
         16,
         Vec2::splat(2.),
-        Vec2::splat(0.)
+        Vec2::splat(0.),
     );
     let texture_atlas_handle = texture_atlas.add(atlas);
     commands.insert_resource(AsciiSheet(texture_atlas_handle));
 }
-fn spawn_player(mut commands: Commands,
-    ascii: Res<AsciiSheet>,
-) {
-
+fn spawn_player(mut commands: Commands, ascii: Res<AsciiSheet>) {
     commands
-        .spawn_bundle(
-            SpriteSheetBundle {
-                sprite: TextureAtlasSprite {
-                    index: 1,
-                    ..default()
-                },
-                texture_atlas: ascii.0.clone(),
-                transform: Transform::from_scale(Vec3::splat(8.)),
+        .spawn_bundle(SpriteSheetBundle {
+            sprite: TextureAtlasSprite {
+                index: 1,
                 ..default()
-            }
-        )
+            },
+            texture_atlas: ascii.0.clone(),
+            transform: Transform::from_scale(Vec3::splat(8.)),
+            ..default()
+        })
         .insert(Player)
         .insert(Name {
             name: "Othi".to_string(),
@@ -320,11 +320,26 @@ fn logic_input_movement(
     for (mut is_moving, mut transform) in &mut sprite_pos {
         // let mut dir: Direction = Direction::Down; // facing the screen
         let dir: Direction = match input.get_pressed().next() {
-            Some(KeyCode::W) => { is_moving.0 = true; Direction::Up }
-            Some(KeyCode::R) => { is_moving.0 = true; Direction::Down }
-            Some(KeyCode::A) => { is_moving.0 = true; Direction::Left }
-            Some(KeyCode::S) => { is_moving.0 = true; Direction::Right }
-            _ => { is_moving.0 = false; Direction::Down } // stops moving
+            Some(KeyCode::W) => {
+                is_moving.0 = true;
+                Direction::Up
+            }
+            Some(KeyCode::R) => {
+                is_moving.0 = true;
+                Direction::Down
+            }
+            Some(KeyCode::A) => {
+                is_moving.0 = true;
+                Direction::Left
+            }
+            Some(KeyCode::S) => {
+                is_moving.0 = true;
+                Direction::Right
+            }
+            _ => {
+                is_moving.0 = false;
+                Direction::Down
+            } // stops moving
         };
         if is_moving.0 {
             match dir {
