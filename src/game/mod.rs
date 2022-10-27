@@ -8,15 +8,18 @@ pub mod math;
 
 pub struct GamePlugin;
 
+/// State indicating whether the character is interacting with the open world or in combat
 /// OutOfCombat: when character is in world, can move
 /// InCombat: when character is in combat, can't move
-/// InTurn: character's turn, skill UI visible
-/// NotInTurn: after character's turn, skill UI invisible
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GameState {
     InCombat,
     OutOfCombat,
 }
+
+/// State indicating whether it's the character's turn yet and can act
+/// InTurn: character's turn, skill UI visible
+/// NotInTurn: after character's turn, skill UI invisible
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CombatState {
     InTurn,

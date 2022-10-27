@@ -35,8 +35,10 @@ pub struct MaxHealth {
     pub value: i32,
 }
 /// CP
-// #[derive(Component)]
-// pub struct Mana(i32);
+#[derive(Component)]
+pub struct Mana{
+    pub value: i32
+}
 /// CP
 #[derive(Component)]
 pub struct Damage {
@@ -67,3 +69,15 @@ pub enum Direction {
 }
 #[derive(Component)]
 pub struct IsMoving(pub bool);
+
+/// whether a skill can only be cast by frienlies or enemies, or both
+#[derive(Component)]
+pub enum SkillGroup {
+    Ally,
+    Enemy,
+    Universal
+}
+
+// UI ===============
+#[derive(Component)]
+pub struct ContextWindow;

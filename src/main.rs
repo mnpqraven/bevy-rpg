@@ -12,8 +12,8 @@ fn main() {
         // .add_plugins(DefaultPlugins)
         .insert_resource(WindowDescriptor {
             title: "bevy-rpg".to_string(),
-            width: 800.,
-            height: 600.,
+            width: 1280.,
+            height: 768.,
             ..default()
         })
         .insert_resource(LogSettings {
@@ -30,7 +30,6 @@ fn main() {
             StartupStage::PostStartup,
             SystemSet::new()
                 // unit archetype
-                .with_system(setup)
                 .with_system(spawn_player)
                 .with_system(spawn_enemy),
         )
@@ -64,7 +63,6 @@ struct CharacterBundle {
 }
 
 // SYSTEM =====================================================================
-fn setup(mut commands: Commands) {}
 /// bevy logo
 fn spawn_enemy(mut commands: Commands) {
     commands
@@ -75,10 +73,11 @@ fn spawn_enemy(mut commands: Commands) {
         })
         .insert(Health { value: 40 })
         .insert(MaxHealth { value: 40 })
+        .insert(Mana { value: 100})
         .insert(Block::default());
 }
 
-fn get_player_name(mut players: Query<(&Health, &LabelName, Option<&Player>)>) {
+fn _get_player_name(mut players: Query<(&Health, &LabelName, Option<&Player>)>) {
     for (health, name, player) in players.iter_mut() {
         println!(
             "STARTUP: entity {} has {} health points",

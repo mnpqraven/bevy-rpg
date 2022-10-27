@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
-use crate::game::GameState;
 use crate::game::component::*;
+use crate::game::GameState;
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
@@ -79,32 +79,23 @@ struct SkillEnt(Entity);
 fn spawn_skill_buttons(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    skills_q: Query<
-        (
-            Entity,
-            &LabelName,
-            Option<&Block>,
-            Option<&Damage>,
-            Option<&Heal>,
-        ),
-        (With<Skill>, With<Learned>),
-    >,
+    skills_q: Query< (Entity, &LabelName), (With<Skill>, With<Learned>)>,
 ) {
     let mut index = 0;
-    for (skill_ent, name, block, damage, heal) in &skills_q {
+    for (skill_ent, name) in skills_q.iter() {
         commands
             .spawn_bundle(ButtonBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
-                        left: Val::Px(10. + index as f32 * 150.),
-                        top: Val::Px(500.),
+                        left: Val::Px(10. + index as f32 * 170.),
+                        top: Val::Px(700.),
                         ..default()
                     },
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     margin: UiRect::all(Val::Auto),
-                    size: Size::new(Val::Px(120.), Val::Px(35.)),
+                    size: Size::new(Val::Px(160.), Val::Px(35.)),
                     ..default()
                 },
                 color: NORMAL_BUTTON.into(),
@@ -116,7 +107,7 @@ fn spawn_skill_buttons(
                     &name.name,
                     TextStyle {
                         font: asset_server.load("font.ttf"),
-                        font_size: 30.,
+                        font_size: 20.,
                         color: TEXT_COLOR,
                     },
                 ));
@@ -152,12 +143,14 @@ fn combat_button_interact(
             Interaction::None => {
                 // still needs to set value for None case, otherwise the text
                 // won't change back from Clicked or Hovered
+                *color = NORMAL_BUTTON.into();
                 text_data.sections[0].value = "state debug".to_string();
             }
         }
     }
 }
 
+/// carries skill ent
 pub struct CastSkillEvent {
     skill_ent: SkillEnt,
 }
@@ -168,6 +161,7 @@ fn skill_button_interact(
         (Changed<Interaction>, With<Button>, With<Skill>),
     >,
     mut ev_castskill: EventWriter<CastSkillEvent>,
+    skill_q: Query<(Entity, &LabelName, Option<&Mana>,Option<&Damage>, Option<&Block>, Option<&Heal>), With<Skill>>,
 ) {
     // TODO: match skill_ent with corresponding button
     for (interaction, color, skill_ent) in &mut button_interaction_q {
@@ -176,8 +170,29 @@ fn skill_button_interact(
             Interaction::Clicked => ev_castskill.send(CastSkillEvent {
                 skill_ent: *skill_ent,
             }),
-            Interaction::Hovered => {}
-            Interaction::None => {}
+            Interaction::Hovered => {
+                for (ent, name, mana_cost, damage, block, heal) in skill_q.iter() {
+                    if ent == skill_ent.0 {
+                        info!("{}", name.name);
+                        if damage.is_some() {
+                            info!("Deals {} damage", damage.unwrap().value);
+                        }
+                        if mana_cost.is_some() {
+                            info!("Costs {} mana", mana_cost.unwrap().value);
+                        }
+                        if block.is_some() {
+                            info!("Gains {} Block", block.unwrap().value);
+                        }
+                        if heal.is_some() {
+                            info!("Heals for {}", heal.unwrap().value);
+                        }
+                    }
+                }
+                // debug!("TODO: skill context window on hover\nprobably change state, pass skill_ent should be\nenough for current information flow");
+            }
+            Interaction::None => {
+                // TODO: despawns skill context
+            }
         }
     }
 }
@@ -187,8 +202,6 @@ fn cast_skill(
     skill_q: Query<(Entity, &LabelName), With<Skill>>,
 ) {
     for ev in ev_castskill.iter() {
-        // WARN: this entity is actually not the skill's entity but the button's entity
-        // TODO: return skill entity and get other component info
         for (skill_ent, skill_name) in skill_q.iter() {
             if skill_ent == ev.skill_ent.0 {
                 info!("CastSkillEvent {:?}", skill_name.name);
