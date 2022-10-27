@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
-// other non-mod.rs modules in the folder here
+// NOTE: other non-mod.rs modules (folders included) in the folder here
 pub mod component;
+pub mod sprites;
+pub mod math;
 
 pub struct GamePlugin;
 
