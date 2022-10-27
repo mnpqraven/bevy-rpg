@@ -1,6 +1,8 @@
 use bevy::{log::LogSettings, prelude::*};
+
 // modules
 mod game;
+use game::component::{Direction, *}; // fix bevy name conflict
 mod menu;
 mod skills;
 
@@ -43,69 +45,6 @@ fn main() {
         .run();
 }
 
-// COMPONENT ==================================================================
-/// CP
-/// User-controlled component
-#[derive(Component, Debug)]
-struct Player;
-/// CP
-#[derive(Component)]
-struct Enemy;
-
-/// CP
-#[derive(Component, Clone, Debug)]
-struct Name {
-    name: String,
-}
-
-/// CP
-#[derive(Component, Debug)]
-struct Skill;
-
-// STATS ============
-/// CP
-#[derive(Component, Clone)]
-struct Health {
-    value: i32,
-}
-/// CP
-#[derive(Component, Clone)]
-struct MaxHealth {
-    value: i32,
-}
-/// CP
-// #[derive(Component)]
-// struct Mana(i32);
-/// CP
-#[derive(Component)]
-struct Damage {
-    value: i32,
-}
-/// CP
-#[derive(Component, Clone)]
-struct Block {
-    value: i32,
-}
-impl Default for Block {
-    fn default() -> Self {
-        Self { value: 0 }
-    }
-}
-/// CP
-#[derive(Component)]
-struct Heal {
-    value: i32,
-}
-/// CP, movement direction, should(?) be linked with keyboard input
-#[derive(Component)]
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-#[derive(Component)]
-struct IsMoving(bool);
 
 // ENTITY =====================================================================
 // RESOURCE ===================================================================
@@ -118,7 +57,7 @@ struct CombatStatBundle {
 // is this actually correct, not very sure
 #[derive(Bundle)]
 struct CharacterBundle {
-    name: Name,
+    name: LabelName,
     current_health: Health,
     current_block: Block,
 }
@@ -169,7 +108,7 @@ fn spawn_player(mut commands: Commands, ascii: Res<AsciiSheet>) {
             ..default()
         })
         .insert(Player)
-        .insert(Name {
+        .insert(LabelName {
             name: "Othi".to_string(),
         })
         .insert(Health { value: 100 })
@@ -181,7 +120,7 @@ fn spawn_enemy(mut commands: Commands) {
     commands
         .spawn()
         .insert(Enemy)
-        .insert(Name {
+        .insert(LabelName {
             name: "training dummy".to_string(),
         })
         .insert(Health { value: 40 })
@@ -189,7 +128,7 @@ fn spawn_enemy(mut commands: Commands) {
         .insert(Block::default());
 }
 
-fn get_player_name(mut players: Query<(&Health, &Name, Option<&Player>)>) {
+fn get_player_name(mut players: Query<(&Health, &LabelName, Option<&Player>)>) {
     for (health, name, player) in players.iter_mut() {
         println!(
             "STARTUP: entity {} has {} health points",
@@ -205,8 +144,8 @@ fn get_player_name(mut players: Query<(&Health, &Name, Option<&Player>)>) {
     }
 }
 fn calc_block(
-    mut player: Query<(&Name, &Health, &mut Block), With<Player>>,
-    skills: Query<(&Name, &Block), (With<Skill>, Without<Player>)>,
+    mut player: Query<(&LabelName, &Health, &mut Block), With<Player>>,
+    skills: Query<(&LabelName, &Block), (With<Skill>, Without<Player>)>,
     // Without for disjoined query
 ) {
     let (player_name, player_health, mut player_block) = player.single_mut();
@@ -222,8 +161,8 @@ fn calc_block(
     println!("====================");
 }
 fn calc_damage(
-    mut player: Query<(&Name, &mut Block, &mut Health), With<Player>>,
-    skills: Query<(&Name, &Damage), (With<Skill>, Without<Player>)>,
+    mut player: Query<(&LabelName, &mut Block, &mut Health), With<Player>>,
+    skills: Query<(&LabelName, &Damage), (With<Skill>, Without<Player>)>,
 ) {
     let (player_name, mut player_block, mut player_health) = player.single_mut();
     print_player_stat(&player_name, &player_block, &player_health);
@@ -242,8 +181,8 @@ fn calc_damage(
     println!("====================");
 }
 fn calc_heal(
-    mut player: Query<(&Name, &Block, &mut Health, &MaxHealth), With<Player>>,
-    skills: Query<(&Name, &Heal), (With<Skill>, Without<Player>)>,
+    mut player: Query<(&LabelName, &Block, &mut Health, &MaxHealth), With<Player>>,
+    skills: Query<(&LabelName, &Heal), (With<Skill>, Without<Player>)>,
 ) {
     let (player_name, player_block, mut player_health, player_max_health) = player.single_mut();
     print_player_stat(&player_name, &player_block, &player_health);
@@ -266,7 +205,7 @@ fn calc_heal(
     println!("====================");
 }
 
-fn print_player_stat(name: &Name, current_block: &Block, current_health: &Health) {
+fn print_player_stat(name: &LabelName, current_block: &Block, current_health: &Health) {
     println!(
         "system: {}'s health: {}, block: {}",
         name.name, current_health.value, current_block.value
@@ -290,7 +229,7 @@ fn logic_input_movement(
 ) {
     for (mut is_moving, mut transform) in &mut sprite_pos {
         // let mut dir: Direction = Direction::Down; // facing the screen
-        let dir: Direction = match input.get_pressed().next() {
+        let dir: crate::game::component::Direction = match input.get_pressed().next() {
             Some(KeyCode::W) => {
                 is_moving.0 = true;
                 Direction::Up

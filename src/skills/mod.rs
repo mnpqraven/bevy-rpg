@@ -2,13 +2,7 @@ use bevy::prelude::*;
 
 // TODO: better imports
 // TODO: crate:Name too lengthy
-use crate::Block;
-use crate::Damage;
-use crate::Heal;
-use crate::Skill;
-#[derive(Component)]
-pub struct Learned(bool);
-
+use crate::game::component::*;
 pub struct SkillPlugin;
 
 impl Plugin for SkillPlugin {
@@ -27,7 +21,7 @@ fn spawn_skill_basic_attack(mut commands: Commands) {
         .spawn()
         .insert(Learned(true))
         .insert(Skill)
-        .insert(crate::Name {
+        .insert(LabelName {
             name: "Attack".to_string(),
         })
         .insert(Damage { value: 7 });
@@ -37,7 +31,7 @@ fn spawn_skill_basic_block(mut commands: Commands) {
         .spawn()
         .insert(Learned(true))
         .insert(Skill)
-        .insert(crate::Name {
+        .insert(LabelName {
             name: "Block".to_string(),
         })
         .insert(Block { value: 5 });
@@ -47,7 +41,7 @@ fn spawn_skill_basic_heal(mut commands: Commands) {
         .spawn()
         .insert(Learned(true))
         .insert(Skill)
-        .insert(crate::Name {
+        .insert(LabelName {
             name: "Bandaid".to_string(),
         })
         .insert(Heal { value: 5 });

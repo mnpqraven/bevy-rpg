@@ -1,5 +1,9 @@
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
+
+// other non-mod.rs modules in the folder here
+pub mod component;
+
 pub struct GamePlugin;
 
 /// OutOfCombat: when character is in world, can move

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
 use crate::game::GameState;
-use crate::Name;
+use crate::game::component::*;
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
@@ -65,14 +65,9 @@ fn spawn_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 // TODO: refactor
-use crate::skills::Learned;
-use crate::Block;
-use crate::Damage;
-use crate::Heal;
-use crate::Skill;
 #[derive(Bundle)]
 struct SkillBundle {
-    name: crate::Name,
+    name: LabelName,
     block: Block,
     heal: Heal,
     damage: Damage,
@@ -87,7 +82,7 @@ fn spawn_skill_buttons(
     skills_q: Query<
         (
             Entity,
-            &crate::Name,
+            &LabelName,
             Option<&Block>,
             Option<&Damage>,
             Option<&Heal>,
@@ -189,7 +184,7 @@ fn skill_button_interact(
 
 fn cast_skill(
     mut ev_castskill: EventReader<CastSkillEvent>,
-    skill_q: Query<(Entity, &Name), With<Skill>>,
+    skill_q: Query<(Entity, &LabelName), With<Skill>>,
 ) {
     for ev in ev_castskill.iter() {
         // WARN: this entity is actually not the skill's entity but the button's entity
