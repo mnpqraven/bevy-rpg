@@ -2,25 +2,31 @@ use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
 use crate::game::component::*;
-use crate::game::GameState;
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(spawn_camera)
             .add_event::<CastSkillEvent>()
-            // TODO: this should be a startup system
-            .add_system(spawn_skill_buttons)
-            .add_system(skill_button_interact)
-            .add_event::<ButtonClickEvent>()
-            .add_startup_system(spawn_combat_button.after(spawn_camera))
-            .add_system(combat_button_interact)
-            .add_system(event_button_click)
-            // TODO: using loopless to manage state now, refactor event if
-            // needed be
+            .add_event::<CombatButtonEvent>()
             .add_event::<SkillContextEvent>()
             .insert_resource(ContextHistory(Vec::new()))
-            // conditional context menu
+            .add_startup_system(spawn_combat_button)
+            .add_system_set(
+                SystemSet::new()
+                    .with_system(combat_button_interact)
+                    .with_system(event_combat_button),
+            )
+            // GameState
+            .add_loopless_state(GameState::OutOfCombat)
+            .add_enter_system(GameState::InCombat, spawn_skill_buttons)
+            .add_system_set(
+                ConditionSet::new()
+                    .run_in_state(GameState::InCombat)
+                    .with_system(skill_button_interact)
+                    .into(),
+            )
+            // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
             .add_enter_system(SkillContextStatus::Open, spawn_skill_context_window)
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
@@ -34,12 +40,21 @@ impl Plugin for MenuPlugin {
     }
 }
 
+/// State indicating whether the character is interacting with the open world or in combat
+/// OutOfCombat: when character is in world, can move
+/// InCombat: when character is in combat, can't move
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameState {
+    InCombat,
+    OutOfCombat,
+}
+
 const TEXT_COLOR: Color = Color::SILVER;
 const NORMAL_BUTTON: Color = Color::rgb(0.5, 0.25, 0.5);
 const HOVERED_BUTTON: Color = Color::rgb(0.35, 0.35, 0.35);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
-struct ButtonClickEvent;
+struct CombatButtonEvent;
 
 /// placeholder camera here
 fn spawn_camera(mut commands: Commands) {
@@ -87,7 +102,7 @@ struct SkillBundle {
     damage: Damage,
 }
 #[derive(Component, Debug, Copy, Clone)]
-struct SkillEnt(Entity);
+pub struct SkillEnt(pub Entity);
 
 /// spawns buttons of every skills the player has learned and can use
 fn spawn_skill_buttons(
@@ -138,7 +153,7 @@ fn combat_button_interact(
         (Changed<Interaction>, (With<Button>, Without<crate::Skill>)),
     >,
     mut text_q: Query<&mut Text>,
-    mut ev_buttonclick: EventWriter<ButtonClickEvent>,
+    mut ev_buttonclick: EventWriter<CombatButtonEvent>,
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
         // NOTE: grabbing children data here
@@ -148,7 +163,7 @@ fn combat_button_interact(
             Interaction::Clicked => {
                 text_data.sections[0].value = "clicked".to_string();
                 *color = PRESSED_BUTTON.into();
-                ev_buttonclick.send(ButtonClickEvent);
+                ev_buttonclick.send(CombatButtonEvent);
             }
             Interaction::Hovered => {
                 text_data.sections[0].value = "hovered".to_string();
@@ -158,7 +173,7 @@ fn combat_button_interact(
                 // still needs to set value for None case, otherwise the text
                 // won't change back from Clicked or Hovered
                 *color = NORMAL_BUTTON.into();
-                text_data.sections[0].value = "state debug".to_string();
+                text_data.sections[0].value = "enter combat debug".to_string();
             }
         }
     }
@@ -170,44 +185,46 @@ pub enum SkillContextStatus {
     Closed,
 }
 
+/// Event<SkillEnt>
 struct SkillContextEvent {
     skill_ent: SkillEnt,
 }
-/// carries skill ent
+/// Event { SkillEnt }
 pub struct CastSkillEvent {
-    skill_ent: SkillEnt,
+    pub skill_ent: SkillEnt,
 }
 /// shows info on hover, send event on click
 fn skill_button_interact(
+    context_state: Res<CurrentState<SkillContextStatus>>,
+    mut commands: Commands,
     mut button_interaction_q: Query<
         (&Interaction, &mut UiColor, &SkillEnt),
         (Changed<Interaction>, With<Button>, With<Skill>),
     >,
     mut ev_castskill: EventWriter<CastSkillEvent>,
-    skill_q: Query<
-        (
-            Entity,
-            &LabelName,
-            Option<&Mana>,
-            Option<&Damage>,
-            Option<&Block>,
-            Option<&Heal>,
-        ),
-        With<Skill>,
-    >,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
-    mut commands: Commands,
-    state: Res<CurrentState<SkillContextStatus>>,
+    mut history: ResMut<ContextHistory>
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
             // TODO: other fancy stuff with color
             Interaction::Clicked => {
                 // sends event data only when context is open
-                if state.0 == SkillContextStatus::Open {
-                    ev_castskill.send(CastSkillEvent {
-                        skill_ent: *skill_ent,
-                    });
+                history.0.push(*skill_ent);
+                if history.0.len() > 2 {
+                    history.0.remove(0);
+                }
+                if context_state.0 == SkillContextStatus::Open {
+                    match history.0.get(1) {
+                        Some(b) => {
+                            if b.0 == history.0.get(0).unwrap().0 {
+                                ev_castskill.send(CastSkillEvent {
+                                    skill_ent: *skill_ent,
+                                })
+                            }
+                        }
+                        None => {}
+                    }
                 }
                 commands.insert_resource(NextState(SkillContextStatus::Open));
                 // context window
@@ -215,10 +232,10 @@ fn skill_button_interact(
                     skill_ent: *skill_ent,
                 });
                 *color = PRESSED_BUTTON.into();
-            },
+            }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
-            },
+            }
             Interaction::None => {
                 *color = NORMAL_BUTTON.into();
             }
@@ -227,7 +244,7 @@ fn skill_button_interact(
 }
 
 // only 2 in vec, pass true to same_skill_selected if both are equal
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct ContextHistory(Vec<SkillEnt>);
 
 /// returns whether if the skill the user click is the same as the context
@@ -255,10 +272,11 @@ fn cast_skill(
     }
 }
 
-fn event_button_click(mut commands: Commands, mut ev_buttonclick: EventReader<ButtonClickEvent>) {
+fn event_combat_button(mut commands: Commands, mut ev_buttonclick: EventReader<CombatButtonEvent>) {
     for _ in ev_buttonclick.iter() {
         debug!("ButtonClickEvent");
         // changing state
+        info!("you're now in combat!");
         commands.insert_resource(NextState(GameState::InCombat));
     }
 }
@@ -273,10 +291,6 @@ fn spawn_skill_context_window(
     for ev in ev_skillcontext.iter() {
         if let Ok((name, dmg, block)) = skill_q.get(ev.skill_ent.0) {
             // https://github.com/IyesGames/iyes_loopless/blob/main/examples/menu.rs
-            context_history.0.push(ev.skill_ent);
-            if context_history.0.len() > 2 {
-                context_history.0.remove(0);
-            }
             if dmg.is_some() {}
             if block.is_some() {}
             commands

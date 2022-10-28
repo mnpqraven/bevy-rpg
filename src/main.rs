@@ -2,6 +2,7 @@ use bevy::{log::LogSettings, prelude::*};
 
 // modules
 mod game;
+pub mod combat;
 use game::component::{Direction, *}; // fix bevy name conflict
 use game::sprites::{load_ascii, spawn_player};
 mod menu;
@@ -21,9 +22,10 @@ fn main() {
             level: bevy::log::Level::DEBUG,
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(crate::menu::MenuPlugin)
         .add_plugin(crate::skills::SkillPlugin)
+        .add_plugin(crate::menu::MenuPlugin)
         .add_plugin(crate::game::GamePlugin)
+        .add_plugin(crate::combat::CombatPlugin)
         .add_startup_system_to_stage(StartupStage::PreStartup, load_ascii)
         .add_system(bevy::window::close_on_esc)
         .add_startup_system_set_to_stage(
@@ -63,7 +65,6 @@ struct CharacterBundle {
 }
 
 // SYSTEM =====================================================================
-/// bevy logo
 fn spawn_enemy(mut commands: Commands) {
     commands
         .spawn()
