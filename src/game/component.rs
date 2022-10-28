@@ -16,7 +16,7 @@ pub struct LabelName {
     pub name: String,
 }
 
-/// CP
+/// CP, tag
 #[derive(Component, Debug)]
 pub struct Skill;
 /// CP
@@ -67,9 +67,17 @@ pub enum Direction {
     Left,
     Right,
 }
+/// CP
+/// whether the character is moving in env state
 #[derive(Component)]
 pub struct IsMoving(pub bool);
 
+/// CP
+/// denotes the target that the character's skill will have effect on
+#[derive(Component)]
+pub struct Target(pub Entity);
+
+/// CP
 /// whether a skill can only be cast by frienlies or enemies, or both
 #[derive(Component)]
 pub enum SkillGroup {

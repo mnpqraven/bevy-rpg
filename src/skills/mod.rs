@@ -1,7 +1,5 @@
 use bevy::prelude::*;
 
-// TODO: better imports
-// TODO: crate:Name too lengthy
 use crate::game::component::*;
 pub struct SkillPlugin;
 

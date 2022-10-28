@@ -9,13 +9,28 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(spawn_camera)
             .add_event::<CastSkillEvent>()
+            // TODO: this should be a startup system
             .add_system(spawn_skill_buttons)
             .add_system(skill_button_interact)
-            .add_system(cast_skill)
             .add_event::<ButtonClickEvent>()
             .add_startup_system(spawn_combat_button.after(spawn_camera))
             .add_system(combat_button_interact)
-            .add_system(event_button_click);
+            .add_system(event_button_click)
+            // TODO: using loopless to manage state now, refactor event if
+            // needed be
+            .add_event::<SkillContextEvent>()
+            .insert_resource(ContextHistory(Vec::new()))
+            // conditional context menu
+            .add_loopless_state(SkillContextStatus::Closed)
+            .add_enter_system(SkillContextStatus::Open, spawn_skill_context_window)
+            .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
+            .add_system_set(
+                ConditionSet::new()
+                    .run_in_state(SkillContextStatus::Open)
+                    .with_system(cast_skill.run_if(same_skill_selected)) // only cast after you see the
+                    // skill's details
+                    .into(),
+            );
     }
 }
 
@@ -64,7 +79,6 @@ fn spawn_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-// TODO: refactor
 #[derive(Bundle)]
 struct SkillBundle {
     name: LabelName,
@@ -79,7 +93,7 @@ struct SkillEnt(Entity);
 fn spawn_skill_buttons(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    skills_q: Query< (Entity, &LabelName), (With<Skill>, With<Learned>)>,
+    skills_q: Query<(Entity, &LabelName), (With<Skill>, With<Learned>)>,
 ) {
     let mut index = 0;
     for (skill_ent, name) in skills_q.iter() {
@@ -89,7 +103,7 @@ fn spawn_skill_buttons(
                     position_type: PositionType::Absolute,
                     position: UiRect {
                         left: Val::Px(10. + index as f32 * 170.),
-                        top: Val::Px(700.),
+                        top: Val::Px(500.),
                         ..default()
                     },
                     justify_content: JustifyContent::Center,
@@ -150,6 +164,15 @@ fn combat_button_interact(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SkillContextStatus {
+    Open,
+    Closed,
+}
+
+struct SkillContextEvent {
+    skill_ent: SkillEnt,
+}
 /// carries skill ent
 pub struct CastSkillEvent {
     skill_ent: SkillEnt,
@@ -161,50 +184,72 @@ fn skill_button_interact(
         (Changed<Interaction>, With<Button>, With<Skill>),
     >,
     mut ev_castskill: EventWriter<CastSkillEvent>,
-    skill_q: Query<(Entity, &LabelName, Option<&Mana>,Option<&Damage>, Option<&Block>, Option<&Heal>), With<Skill>>,
+    skill_q: Query<
+        (
+            Entity,
+            &LabelName,
+            Option<&Mana>,
+            Option<&Damage>,
+            Option<&Block>,
+            Option<&Heal>,
+        ),
+        With<Skill>,
+    >,
+    mut ev_skillcontext: EventWriter<SkillContextEvent>,
+    mut commands: Commands,
+    state: Res<CurrentState<SkillContextStatus>>,
 ) {
-    // TODO: match skill_ent with corresponding button
-    for (interaction, color, skill_ent) in &mut button_interaction_q {
+    for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
             // TODO: other fancy stuff with color
-            Interaction::Clicked => ev_castskill.send(CastSkillEvent {
-                skill_ent: *skill_ent,
-            }),
-            Interaction::Hovered => {
-                for (ent, name, mana_cost, damage, block, heal) in skill_q.iter() {
-                    if ent == skill_ent.0 {
-                        info!("{}", name.name);
-                        if damage.is_some() {
-                            info!("Deals {} damage", damage.unwrap().value);
-                        }
-                        if mana_cost.is_some() {
-                            info!("Costs {} mana", mana_cost.unwrap().value);
-                        }
-                        if block.is_some() {
-                            info!("Gains {} Block", block.unwrap().value);
-                        }
-                        if heal.is_some() {
-                            info!("Heals for {}", heal.unwrap().value);
-                        }
-                    }
+            Interaction::Clicked => {
+                // sends event data only when context is open
+                if state.0 == SkillContextStatus::Open {
+                    ev_castskill.send(CastSkillEvent {
+                        skill_ent: *skill_ent,
+                    });
                 }
-                // debug!("TODO: skill context window on hover\nprobably change state, pass skill_ent should be\nenough for current information flow");
-            }
+                commands.insert_resource(NextState(SkillContextStatus::Open));
+                // context window
+                ev_skillcontext.send(SkillContextEvent {
+                    skill_ent: *skill_ent,
+                });
+                *color = PRESSED_BUTTON.into();
+            },
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+            },
             Interaction::None => {
-                // TODO: despawns skill context
+                *color = NORMAL_BUTTON.into();
             }
         }
     }
 }
 
+// only 2 in vec, pass true to same_skill_selected if both are equal
+#[derive(Component)]
+struct ContextHistory(Vec<SkillEnt>);
+
+/// returns whether if the skill the user click is the same as the context
+/// window skill spawned on the screen
+fn same_skill_selected(history: Res<ContextHistory>) -> bool {
+    if history.0.get(0).is_some() && history.0.get(1).is_some() {
+        if history.0[0].0 == history.0[1].0 {
+            return true;
+        }
+    }
+    false
+}
 fn cast_skill(
     mut ev_castskill: EventReader<CastSkillEvent>,
     skill_q: Query<(Entity, &LabelName), With<Skill>>,
+    mut commands: Commands,
 ) {
     for ev in ev_castskill.iter() {
         for (skill_ent, skill_name) in skill_q.iter() {
             if skill_ent == ev.skill_ent.0 {
                 info!("CastSkillEvent {:?}", skill_name.name);
+                commands.insert_resource(NextState(SkillContextStatus::Closed));
             }
         }
     }
@@ -215,5 +260,41 @@ fn event_button_click(mut commands: Commands, mut ev_buttonclick: EventReader<Bu
         debug!("ButtonClickEvent");
         // changing state
         commands.insert_resource(NextState(GameState::InCombat));
+    }
+}
+
+fn spawn_skill_context_window(
+    mut commands: Commands,
+    mut ev_skillcontext: EventReader<SkillContextEvent>,
+    skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>), With<Skill>>,
+    mut context_history: ResMut<ContextHistory>,
+) {
+    // TODO: complete with info text and window size + placements
+    for ev in ev_skillcontext.iter() {
+        if let Ok((name, dmg, block)) = skill_q.get(ev.skill_ent.0) {
+            // https://github.com/IyesGames/iyes_loopless/blob/main/examples/menu.rs
+            context_history.0.push(ev.skill_ent);
+            if context_history.0.len() > 2 {
+                context_history.0.remove(0);
+            }
+            if dmg.is_some() {}
+            if block.is_some() {}
+            commands
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Px(40.), Val::Px(40.)),
+                        border: UiRect::all(Val::Px(2.)),
+                        ..default()
+                    },
+                    ..default()
+                })
+                .insert(ContextWindow);
+        }
+    }
+}
+
+fn despawn_with<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
+    for ent in query.iter() {
+        commands.entity(ent).despawn_recursive();
     }
 }
