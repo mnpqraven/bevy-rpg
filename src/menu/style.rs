@@ -1,1 +1,1 @@
-/// dumps all the long structs here
+// dumps all the long structs here

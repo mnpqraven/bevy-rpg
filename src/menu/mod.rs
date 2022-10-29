@@ -199,7 +199,7 @@ fn skill_button_interact(
                             if b.0 == history.0.get(0).unwrap().0 {
                                 ev_castskill.send(CastSkillEvent {
                                     skill_ent: *skill_ent,
-                                })
+                                });
                             }
                         }
                         None => {}

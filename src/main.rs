@@ -2,7 +2,6 @@ use bevy::{log::LogSettings, prelude::*};
 
 // modules
 use game::component::*; // fix bevy name conflict
-use game::sprites::{load_ascii, spawn_player};
 
 mod combat;
 mod environment;

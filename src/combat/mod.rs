@@ -66,7 +66,6 @@ impl Plugin for CombatPlugin {
             .label("eval")
             .with_system(logic_calc)
             .with_system(eval_self)
-            // TODO: link this and eval clean up
             .with_system(eval_enemy)
             .into(),
         )
@@ -115,7 +114,6 @@ fn ev_player_turn_start() {
 }
 fn logic_calc(mut ev_castskill: EventReader<CastSkillEvent>, _skill_q: Query<Entity, With<Skill>>) {
     for _ in ev_castskill.iter() {}
-    info!("combat: logic_calc");
 }
 
 // NOTE: new mechanics
@@ -146,7 +144,14 @@ fn eval_enemy(
         .get_single_mut()
         .expect("Should only have 1 enemy (for now)");
 
+    if ev_castskill.iter().len() == 0 {
+        // should never see this
+        panic!("0 length event iter");
+    }
     for ev in ev_castskill.iter() {
+        // FIXME: event can't listen to the call
+        // maybe this is called before than the event caller ?
+        debug!("should see ?");
         for (skill_ent, block, damage, _heal) in skill_q.iter() {
             if skill_ent == ev.skill_ent.0 {
                 if damage.is_some() {
