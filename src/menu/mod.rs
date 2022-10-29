@@ -19,6 +19,7 @@ impl Plugin for MenuPlugin {
             )
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
+            // see WhoseTurn::player in combat
             .add_enter_system(GameState::InCombat, spawn_skill_buttons)
             .add_system_set(
                 ConditionSet::new()
@@ -30,16 +31,9 @@ impl Plugin for MenuPlugin {
             .add_loopless_state(SkillContextStatus::Closed)
             .add_enter_system(SkillContextStatus::Open, spawn_skill_context_window)
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(SkillContextStatus::Open)
-                    .with_system(cast_skill.run_if(same_skill_selected)) // only cast after you see the
-                    // skill's details
-                    .into(),
-            );
+            ;
     }
 }
-
 /// State indicating whether the character is interacting with the open world or in combat
 /// OutOfCombat: when character is in world, can move
 /// InCombat: when character is in combat, can't move
@@ -94,18 +88,7 @@ fn spawn_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-#[derive(Bundle)]
-struct SkillBundle {
-    name: LabelName,
-    block: Block,
-    heal: Heal,
-    damage: Damage,
-}
-#[derive(Component, Debug, Copy, Clone)]
-pub struct SkillEnt(pub Entity);
-
-/// spawns buttons of every skills the player has learned and can use
-fn spawn_skill_buttons(
+pub fn spawn_skill_buttons(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     skills_q: Query<(Entity, &LabelName), (With<Skill>, With<Learned>)>,
@@ -142,7 +125,9 @@ fn spawn_skill_buttons(
                 ));
             })
             // dump skill data here
-            .insert(SkillEnt(skill_ent));
+            .insert(SkillEnt(skill_ent))
+            .insert(SkillIcon)
+            ;
         index += 1;
     }
 }
@@ -185,13 +170,9 @@ pub enum SkillContextStatus {
     Closed,
 }
 
-/// Event<SkillEnt>
+/// Event { SkillEnt }
 struct SkillContextEvent {
     skill_ent: SkillEnt,
-}
-/// Event { SkillEnt }
-pub struct CastSkillEvent {
-    pub skill_ent: SkillEnt,
 }
 /// shows info on hover, send event on click
 fn skill_button_interact(
@@ -203,13 +184,11 @@ fn skill_button_interact(
     >,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
-    mut history: ResMut<ContextHistory>
+    mut history: ResMut<ContextHistory>,
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
-            // TODO: other fancy stuff with color
             Interaction::Clicked => {
-                // sends event data only when context is open
                 history.0.push(*skill_ent);
                 if history.0.len() > 2 {
                     history.0.remove(0);
@@ -243,35 +222,6 @@ fn skill_button_interact(
     }
 }
 
-// only 2 in vec, pass true to same_skill_selected if both are equal
-#[derive(Component, Debug)]
-struct ContextHistory(Vec<SkillEnt>);
-
-/// returns whether if the skill the user click is the same as the context
-/// window skill spawned on the screen
-fn same_skill_selected(history: Res<ContextHistory>) -> bool {
-    if history.0.get(0).is_some() && history.0.get(1).is_some() {
-        if history.0[0].0 == history.0[1].0 {
-            return true;
-        }
-    }
-    false
-}
-fn cast_skill(
-    mut ev_castskill: EventReader<CastSkillEvent>,
-    skill_q: Query<(Entity, &LabelName), With<Skill>>,
-    mut commands: Commands,
-) {
-    for ev in ev_castskill.iter() {
-        for (skill_ent, skill_name) in skill_q.iter() {
-            if skill_ent == ev.skill_ent.0 {
-                info!("CastSkillEvent {:?}", skill_name.name);
-                commands.insert_resource(NextState(SkillContextStatus::Closed));
-            }
-        }
-    }
-}
-
 fn event_combat_button(mut commands: Commands, mut ev_buttonclick: EventReader<CombatButtonEvent>) {
     for _ in ev_buttonclick.iter() {
         debug!("ButtonClickEvent");
@@ -285,12 +235,10 @@ fn spawn_skill_context_window(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<SkillContextEvent>,
     skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>), With<Skill>>,
-    mut context_history: ResMut<ContextHistory>,
 ) {
     // TODO: complete with info text and window size + placements
     for ev in ev_skillcontext.iter() {
-        if let Ok((name, dmg, block)) = skill_q.get(ev.skill_ent.0) {
-            // https://github.com/IyesGames/iyes_loopless/blob/main/examples/menu.rs
+        if let Ok((_name, dmg, block)) = skill_q.get(ev.skill_ent.0) {
             if dmg.is_some() {}
             if block.is_some() {}
             commands
@@ -307,7 +255,7 @@ fn spawn_skill_context_window(
     }
 }
 
-fn despawn_with<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
+pub fn despawn_with<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
     for ent in query.iter() {
         commands.entity(ent).despawn_recursive();
     }

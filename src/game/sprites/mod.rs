@@ -4,10 +4,12 @@ use crate::game::component::*;
 pub struct SpritePlugin;
 impl Plugin for SpritePlugin {
     fn build(&self, app: &mut App) {
-        todo!()
+        app.add_startup_system_to_stage(StartupStage::PreStartup, load_ascii)
+        ;
     }
 }
-fn load_single_ascii(mut commands: Commands, asset_server: Res<AssetServer>) {
+/// bevy logo
+fn _load_single_ascii(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn_bundle(SpriteBundle {
             texture: asset_server.load("icon.png"),

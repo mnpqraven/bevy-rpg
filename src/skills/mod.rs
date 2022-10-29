@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::game::component::*;
+use crate::game::bundle::*;
 pub struct SkillPlugin;
 
 impl Plugin for SkillPlugin {
@@ -77,12 +78,6 @@ fn spawn_skill_bite(mut commands: Commands) {
         });
 }
 
-#[derive(Bundle)]
-pub struct SkillBundle {
-    skill_group: SkillGroup,
-    name: LabelName,
-    skill: Skill, // tag
-}
 impl Default for SkillBundle {
     fn default() -> Self {
         Self {

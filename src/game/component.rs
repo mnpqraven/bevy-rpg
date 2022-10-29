@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 
-// COMPONENT ==================================================================
 /// CP
 /// User-controlled component
 #[derive(Component, Debug)]
@@ -22,6 +21,9 @@ pub struct Skill;
 /// CP
 #[derive(Component)]
 pub struct Learned(pub bool);
+/// CP
+#[derive(Component, Debug, Copy, Clone)]
+pub struct SkillEnt(pub Entity);
 
 // STATS ============
 /// CP
@@ -36,8 +38,8 @@ pub struct MaxHealth {
 }
 /// CP
 #[derive(Component)]
-pub struct Mana{
-    pub value: i32
+pub struct Mana {
+    pub value: i32,
 }
 /// CP
 #[derive(Component)]
@@ -79,13 +81,24 @@ pub struct Target(pub Entity);
 
 /// CP
 /// whether a skill can only be cast by frienlies or enemies, or both
-#[derive(Component)]
+#[derive(Component, PartialEq, Eq)]
 pub enum SkillGroup {
     Ally,
     Enemy,
-    Universal
+    Universal,
 }
 
 // UI ===============
+/// CP, Tag
 #[derive(Component)]
 pub struct ContextWindow;
+#[derive(Component)]
+pub struct SkillIcon;
+
+/// Vector of 2, pass true to same_skill_selected if both are equal
+#[derive(Component, Debug)]
+pub struct ContextHistory(pub Vec<SkillEnt>);
+/// Event { SkillEnt }
+pub struct CastSkillEvent {
+    pub skill_ent: SkillEnt,
+}
