@@ -101,4 +101,5 @@ pub struct ContextHistory(pub Vec<SkillEnt>);
 /// Event { SkillEnt }
 pub struct CastSkillEvent {
     pub skill_ent: SkillEnt,
+    pub target: Entity
 }

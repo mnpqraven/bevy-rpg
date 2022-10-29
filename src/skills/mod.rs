@@ -75,7 +75,8 @@ fn spawn_skill_bite(mut commands: Commands) {
                 name: "Bite".to_string(),
             },
             ..default()
-        });
+        })
+        .insert(Damage { value: 13});
 }
 
 impl Default for SkillBundle {

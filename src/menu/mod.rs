@@ -3,7 +3,7 @@ mod style;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
-use crate::game::component::*;
+use crate::{game::component::*, combat::WhoseTurn};
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
@@ -32,6 +32,8 @@ impl Plugin for MenuPlugin {
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
             .add_enter_system(SkillContextStatus::Open, draw_skill_context)
+            // despawning draws
+            .add_exit_system(WhoseTurn::Player, despawn_with::<ContextWindow>)
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>);
     }
 }
@@ -185,6 +187,7 @@ fn skill_button_interact(
     mut ev_castskill: EventWriter<CastSkillEvent>,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
     mut history: ResMut<ContextHistory>,
+    enemy_q: Query<Entity, With<Enemy>>
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
@@ -193,23 +196,31 @@ fn skill_button_interact(
                 if history.0.len() > 2 {
                     history.0.remove(0);
                 }
+                // if a context window is already opened
                 if context_state.0 == SkillContextStatus::Open {
                     match history.0.get(1) {
                         Some(b) => {
                             if b.0 == history.0.get(0).unwrap().0 {
                                 ev_castskill.send(CastSkillEvent {
                                     skill_ent: *skill_ent,
+                                    target: enemy_q.single()
                                 });
+                                info!("CastSkillEvent {:?}", skill_ent);
+                                // reset history
+                                history.0 = Vec::new();
+                                commands.insert_resource(NextState(SkillContextStatus::Closed));
+                                commands.insert_resource(NextState(WhoseTurn::System));
                             }
                         }
                         None => {}
                     }
+                } else {
+                    // fresh context window
+                    commands.insert_resource(NextState(SkillContextStatus::Open));
+                    ev_skillcontext.send(SkillContextEvent {
+                        skill_ent: *skill_ent,
+                    });
                 }
-                commands.insert_resource(NextState(SkillContextStatus::Open));
-                // context window
-                ev_skillcontext.send(SkillContextEvent {
-                    skill_ent: *skill_ent,
-                });
                 *color = PRESSED_BUTTON.into();
             }
             Interaction::Hovered => {
@@ -224,9 +235,8 @@ fn skill_button_interact(
 
 fn event_combat_button(mut commands: Commands, mut ev_buttonclick: EventReader<CombatButtonEvent>) {
     for _ in ev_buttonclick.iter() {
-        debug!("ButtonClickEvent");
         // changing state
-        info!("you're now in combat!");
+        info!("GameState::InCombat");
         commands.insert_resource(NextState(GameState::InCombat));
     }
 }
