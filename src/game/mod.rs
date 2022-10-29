@@ -13,7 +13,9 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(
+        app
+        .add_plugin(sprites::SpritePlugin)
+        .add_system_set(
             ConditionSet::new()
                 .run_in_state(SkillContextStatus::Open)
                 // only cast after you see the

@@ -1,14 +1,21 @@
-use bevy::prelude::*;
 use crate::game::component::*;
-// TODO: refactor
+use bevy::prelude::*;
+
 pub struct SpritePlugin;
 impl Plugin for SpritePlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system_to_stage(StartupStage::PreStartup, load_ascii)
-        ;
+            .add_startup_system_set_to_stage(
+                StartupStage::PostStartup,
+                SystemSet::new()
+                    .with_system(spawn_player)
+                    // TODO: conditional spawning later
+                    .with_system(spawn_enemy),
+            );
     }
 }
 /// bevy logo
+/// TODO: can use this as placeholder skill icon
 fn _load_single_ascii(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn_bundle(SpriteBundle {
@@ -59,4 +66,17 @@ pub fn spawn_player(mut commands: Commands, ascii: Res<AsciiSheet>) {
         .insert(MaxHealth { value: 100 })
         .insert(Block::default())
         .insert(IsMoving(false));
+}
+
+fn spawn_enemy(mut commands: Commands) {
+    commands
+        .spawn()
+        .insert(Enemy)
+        .insert(LabelName {
+            name: "training dummy".to_string(),
+        })
+        .insert(Health { value: 40 })
+        .insert(MaxHealth { value: 40 })
+        .insert(Mana { value: 100 })
+        .insert(Block::default());
 }

@@ -3,7 +3,10 @@ pub mod ai;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
-use crate::{game::component::*, menu::{despawn_with, spawn_skill_buttons, GameState}};
+use crate::{
+    game::component::*,
+    menu::{despawn_with, draw_skill_icons, GameState},
+};
 
 pub struct CombatPlugin;
 
@@ -49,7 +52,7 @@ impl Plugin for CombatPlugin {
         .add_enter_system_set(WhoseTurn::Player,
             ConditionSet::new()
             .with_system(ev_player_turn_start)
-            .with_system(spawn_skill_buttons.run_in_state(GameState::InCombat))
+            .with_system(draw_skill_icons.run_in_state(GameState::InCombat))
             .into()
             )
         .add_exit_system(WhoseTurn::Player, despawn_with::<SkillIcon>)
@@ -94,20 +97,23 @@ fn ev_enemy_turn_start(
 ) {
     debug!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
-    for (enemy_skill_ent, enemy_skill_name, _skill_group) in enemy_skill_q.iter().filter(| ( _, _, grp) | **grp == SkillGroup::Enemy) { // double deref ??
+    for (enemy_skill_ent, enemy_skill_name, _skill_group) in enemy_skill_q
+        .iter()
+        .filter(|(_, _, grp)| **grp == SkillGroup::Enemy)
+    {
+        // double deref ??
         // FIXME: make this CastSkillEvent doesn't listen
         info!("enemy casting {}", enemy_skill_name.name);
-        ev_castskill.send(CastSkillEvent { skill_ent: SkillEnt(enemy_skill_ent) })
+        ev_castskill.send(CastSkillEvent {
+            skill_ent: SkillEnt(enemy_skill_ent),
+        })
     }
 }
 
 fn ev_player_turn_start() {
     debug!("WhoseTurn::Player");
 }
-fn logic_calc(
-    mut ev_castskill: EventReader<CastSkillEvent>,
-    _skill_q: Query<Entity, With<Skill>>,
-) {
+fn logic_calc(mut ev_castskill: EventReader<CastSkillEvent>, _skill_q: Query<Entity, With<Skill>>) {
     for _ in ev_castskill.iter() {}
     info!("combat: logic_calc");
 }
@@ -134,7 +140,7 @@ fn eval_enemy(
     mut ev_castskill: EventReader<CastSkillEvent>,
     mut ev_enemykilled: EventWriter<EnemyKilledEvent>,
     next_in_turn: Res<CurrentState<NextInTurn>>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     let (enemy_ent, enemy_name, mut enemy_health, mut enemy_block) = enemy
         .get_single_mut()
@@ -163,12 +169,12 @@ fn eval_enemy(
                     // eval done, update next turn state and queue
                     match next_in_turn.0 {
                         NextInTurn::Player => {
-                        commands.insert_resource(NextState(NextInTurn::Enemy));
-                        commands.insert_resource(NextState(WhoseTurn::Player));
+                            commands.insert_resource(NextState(NextInTurn::Enemy));
+                            commands.insert_resource(NextState(WhoseTurn::Player));
                         }
                         NextInTurn::Enemy => {
-                        commands.insert_resource(NextState(NextInTurn::Player));
-                        commands.insert_resource(NextState(WhoseTurn::Enemy));
+                            commands.insert_resource(NextState(NextInTurn::Player));
+                            commands.insert_resource(NextState(WhoseTurn::Enemy));
                         }
                     }
                 }

@@ -1,3 +1,5 @@
+mod style;
+
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
@@ -20,7 +22,7 @@ impl Plugin for MenuPlugin {
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
             // see WhoseTurn::player in combat
-            .add_enter_system(GameState::InCombat, spawn_skill_buttons)
+            .add_enter_system(GameState::InCombat, draw_skill_icons)
             .add_system_set(
                 ConditionSet::new()
                     .run_in_state(GameState::InCombat)
@@ -29,9 +31,8 @@ impl Plugin for MenuPlugin {
             )
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
-            .add_enter_system(SkillContextStatus::Open, spawn_skill_context_window)
-            .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
-            ;
+            .add_enter_system(SkillContextStatus::Open, draw_skill_context)
+            .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>);
     }
 }
 /// State indicating whether the character is interacting with the open world or in combat
@@ -68,7 +69,7 @@ fn spawn_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 margin: UiRect::all(Val::Auto),
-                size: Size::new(Val::Px(150.), Val::Px(35.)),
+                size: Size::new(Val::Px(210.), Val::Px(30.)),
                 ..default()
             },
             color: NORMAL_BUTTON.into(),
@@ -81,14 +82,14 @@ fn spawn_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
                 "enter combat",
                 TextStyle {
                     font: asset_server.load("font.ttf"),
-                    font_size: 30.,
+                    font_size: 20.,
                     color: TEXT_COLOR,
                 },
             ));
         });
 }
 
-pub fn spawn_skill_buttons(
+pub fn draw_skill_icons(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     skills_q: Query<(Entity, &LabelName), (With<Skill>, With<Learned>)>,
@@ -100,8 +101,8 @@ pub fn spawn_skill_buttons(
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
-                        left: Val::Px(10. + index as f32 * 170.),
-                        top: Val::Px(500.),
+                        left: Val::Px(40. + index as f32 * 170.),
+                        top: Val::Px(700.),
                         ..default()
                     },
                     justify_content: JustifyContent::Center,
@@ -126,8 +127,7 @@ pub fn spawn_skill_buttons(
             })
             // dump skill data here
             .insert(SkillEnt(skill_ent))
-            .insert(SkillIcon)
-            ;
+            .insert(SkillIcon);
         index += 1;
     }
 }
@@ -231,24 +231,84 @@ fn event_combat_button(mut commands: Commands, mut ev_buttonclick: EventReader<C
     }
 }
 
-fn spawn_skill_context_window(
+fn draw_skill_context(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<SkillContextEvent>,
     skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>), With<Skill>>,
+    asset_server: Res<AssetServer>,
 ) {
     // TODO: complete with info text and window size + placements
     for ev in ev_skillcontext.iter() {
-        if let Ok((_name, dmg, block)) = skill_q.get(ev.skill_ent.0) {
+        if let Ok((name, dmg, block)) = skill_q.get(ev.skill_ent.0) {
             if dmg.is_some() {}
             if block.is_some() {}
+            // root note < <Node/Text>(title) <Node/Text>(info)>
+            // 20/80, center alignment title
             commands
+                // root
                 .spawn_bundle(NodeBundle {
                     style: Style {
-                        size: Size::new(Val::Px(40.), Val::Px(40.)),
+                        position_type: PositionType::Absolute,
+                        position: UiRect {
+                            left: Val::Px(100.),
+                            top: Val::Px(300.),
+                            ..default()
+                        },
+                        size: Size::new(Val::Px(400.), Val::Px(400.)),
                         border: UiRect::all(Val::Px(2.)),
+                        flex_direction: FlexDirection::ColumnReverse, // top to bottom
                         ..default()
                     },
+                    color: Color::NONE.into(),
                     ..default()
+                })
+                // node/text title
+                // 20% height, center div
+                .with_children(|parent| {
+                    parent
+                        .spawn_bundle(NodeBundle {
+                            style: Style {
+                                size: Size::new(Val::Percent(100.), Val::Percent(20.)),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            color: Color::SILVER.into(),
+                            ..default()
+                        })
+                        .with_children(|parent| {
+                            parent.spawn_bundle(TextBundle::from_section(
+                                name.name.clone(),
+                                TextStyle {
+                                    font: asset_server.load("font.ttf"),
+                                    font_size: 20.,
+                                    color: Color::PINK.into(),
+                                },
+                            ));
+                        });
+                })
+                // node/text info
+                .with_children(|parent| {
+                    parent
+                        .spawn_bundle(NodeBundle {
+                            style: Style {
+                                size: Size::new(Val::Percent(100.), Val::Percent(80.)),
+                                align_items: AlignItems::FlexEnd,
+                                ..default()
+                            },
+                            color: Color::PURPLE.into(),
+                            ..default()
+                        })
+                        .with_children(|parent| {
+                            parent.spawn_bundle(TextBundle::from_section(
+                                "description",
+                                TextStyle {
+                                    font: asset_server.load("font.ttf"),
+                                    font_size: 20.,
+                                    color: Color::PINK.into(),
+                                },
+                            ));
+                        });
                 })
                 .insert(ContextWindow);
         }
