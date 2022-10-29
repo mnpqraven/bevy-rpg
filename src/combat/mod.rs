@@ -1,8 +1,6 @@
 pub mod ai;
 
-use core::panic;
-
-use bevy::{prelude::*, utils::tracing::field::debug};
+use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
 use crate::{
@@ -71,7 +69,6 @@ impl Plugin for CombatPlugin {
                     .with_system(eval_skill)
                     .into(),
             )
-            .add_system(enemy_action.run_in_state(WhoseTurn::Enemy))
             // system - turn eval
             .add_system_set(
                 ConditionSet::new()
@@ -81,9 +78,9 @@ impl Plugin for CombatPlugin {
                     .with_system(ev_reward.run_if(is_all_enemies_dead))
                     .into(),
             )
-            // EnemyKilled
             .add_event::<EnemyKilledEvent>()
-            .add_system(ev_enemykilled);
+            .add_system(ev_enemykilled)
+            .add_system(ev_castskill.run_not_in_state(WhoseTurn::System));
     }
 }
 
@@ -94,17 +91,13 @@ fn ev_enemy_turn_start(
     player: Query<Entity, With<Player>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     enemy_skill_q: Query<(Entity, &LabelName, &SkillGroup), With<SkillGroup>>,
-    mut whose_turn: ResMut<CurrentState<WhoseTurn>>,
-    mut commands: Commands,
 ) {
     debug!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
-    for (enemy_skill_ent, enemy_skill_name, _skill_group) in enemy_skill_q
+    for (enemy_skill_ent, enemy_skill_name, _) in enemy_skill_q
         .iter()
         .filter(|(_, _, grp)| **grp == SkillGroup::Enemy)
     {
-        // double deref ??
-        // FIXME: make this CastSkillEvent doesn't listen
         info!(
             "CastSkillEvent {:?} {}",
             enemy_skill_ent, enemy_skill_name.name
@@ -118,11 +111,12 @@ fn ev_enemy_turn_start(
     }
 }
 
-fn enemy_action(mut commands: Commands) {
-    // debug: do nothing
+fn ev_castskill(mut commands: Commands, mut ev_castskill: EventReader<CastSkillEvent>) {
     // TODO: this works but think of a better way to use this instead of an extra method
-    {}
-    commands.insert_resource(NextState(WhoseTurn::System));
+    // updates turn state when skill is cast, system handles evaluating skills
+    for _ in ev_castskill.iter() {
+        commands.insert_resource(NextState(WhoseTurn::System));
+    }
 }
 
 fn ev_player_turn_start() {

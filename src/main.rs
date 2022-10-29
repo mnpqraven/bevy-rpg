@@ -1,7 +1,6 @@
 use bevy::{log::LogSettings, prelude::*};
 
-// modules
-use game::component::*; // fix bevy name conflict
+use game::component::*;
 
 mod combat;
 mod environment;
