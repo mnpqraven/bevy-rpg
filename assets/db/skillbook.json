@@ -1,6 +1,6 @@
 [
-  {
-    "LabelName": "Strike",
-    "Damage": 7
-  }
+  { "LabelName": "Strike", "Damage": 7,  "SkillGroup": "Universal" },
+  { "LabelName": "Block", "Block": 5, "SkillGroup": "Universal" },
+  { "LabelName": "Heal", "Heal": 5, "SkillGroup": "Universal" },
+  { "LabelName": "Bash", "Damage": 12, "Mana": 25,"SkillGroup": "Ally" }
 ]
