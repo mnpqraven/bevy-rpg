@@ -11,13 +11,6 @@ use crate::{
 pub struct CombatPlugin;
 
 /// State indicating whether it's the character's turn yet and can act
-/// InTurn: character's turn, skill UI visible
-/// NotInTurn: after character's turn, skill UI invisible
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum CombatState {
-    InTurn,
-    NotInTurn,
-}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum WhoseTurn {
     Player,
@@ -44,8 +37,7 @@ pub struct EnemyTurnStartEvent;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_loopless_state(CombatState::InTurn)
-            .add_loopless_state(WhoseTurn::Player)
+        app.add_loopless_state(WhoseTurn::Player)
             .add_loopless_state(NextInTurn::Enemy)
             // Player turn start
             .add_event::<TurnStartEvent>()
@@ -145,7 +137,6 @@ fn eval_skill(
     next_in_turn: Res<CurrentState<NextInTurn>>,
     mut commands: Commands,
 ) {
-    info!("calculating..");
     for ev in ev_castskill.iter() {
         let (target_ent, target_name, mut target_health, mut target_block, target_player_tag) =
             unit.get_mut(ev.target).unwrap();
@@ -155,13 +146,14 @@ fn eval_skill(
         };
         for (skill_ent, block, damage, _heal) in skill_q.iter() {
             if skill_ent == ev.skill_ent.0 {
+                if block.is_some() {
+                    target_block.value += block.unwrap().value;
+                    debug!("should see {} block {}", target_name.name, target_block.value);
+                }
                 if damage.is_some() {
-                    let bleed_through = match block {
-                        Some(block) => {
-                            target_block.value -= damage.unwrap().value;
-                            damage.unwrap().value - block.value
-                        }
-                        None => damage.unwrap().value,
+                    let bleed_through = match damage.unwrap().value > target_block.value {
+                        true => damage.unwrap().value - target_block.value,
+                        false => 0
                     };
                     target_health.value -= bleed_through;
                     info!(

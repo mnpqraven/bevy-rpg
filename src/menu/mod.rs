@@ -204,6 +204,8 @@ fn skill_button_interact(
                                 ev_castskill.send(CastSkillEvent {
                                     skill_ent: *skill_ent,
                                     target: enemy_q.single()
+                                    // debug for blocking
+                                    // target: player.single()
                                 });
                                 info!("CastSkillEvent {:?}", skill_ent);
                                 // reset history
@@ -244,14 +246,24 @@ fn event_combat_button(mut commands: Commands, mut ev_buttonclick: EventReader<C
 fn draw_skill_context(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<SkillContextEvent>,
-    skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>), With<Skill>>,
+    skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>, Option<&Heal>), With<Skill>>,
     asset_server: Res<AssetServer>,
 ) {
     // TODO: complete with info text and window size + placements
     for ev in ev_skillcontext.iter() {
-        if let Ok((name, dmg, block)) = skill_q.get(ev.skill_ent.0) {
-            if dmg.is_some() {}
-            if block.is_some() {}
+        if let Ok((name, dmg, block, heal)) = skill_q.get(ev.skill_ent.0) {
+            let (mut a, mut b, mut c): (String, String, String) = (String::new(), String::new(), String::new());
+            if dmg.is_some() {
+                a = format!("Deal {} points of Damage", dmg.unwrap().value)
+            }
+            if block.is_some() {
+                b = format!("Grant {} points of Block", block.unwrap().value)
+            }
+            if heal.is_some() {
+                c = format!("Heal the target for {} points", heal.unwrap().value)
+            }
+            let skill_description = format!("{}\n{}\n{}", a, b, c);
+
             // root note < <Node/Text>(title) <Node/Text>(info)>
             // 20/80, center alignment title
             commands
@@ -311,7 +323,7 @@ fn draw_skill_context(
                         })
                         .with_children(|parent| {
                             parent.spawn_bundle(TextBundle::from_section(
-                                "description",
+                                skill_description,
                                 TextStyle {
                                     font: asset_server.load("font.ttf"),
                                     font_size: 20.,
