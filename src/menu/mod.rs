@@ -3,47 +3,44 @@ mod style;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
-use crate::{game::component::*, combat::WhoseTurn};
+use crate::game::component::*;
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(spawn_camera)
-            .add_event::<CastSkillEvent>()
             .add_event::<CombatButtonEvent>()
             .add_event::<SkillContextEvent>()
+            .add_event::<TargetPromptEvent>()
+            .add_event::<TargetSelectEvent>()
+            .insert_resource(SelectingSkill(None))
             .insert_resource(ContextHistory(Vec::new()))
             .add_startup_system(spawn_combat_button)
             .add_system_set(
                 SystemSet::new()
                     .with_system(combat_button_interact)
-                    .with_system(event_combat_button),
+                    .with_system(evread_combat_button),
             )
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
-            // see WhoseTurn::player in combat
             .add_enter_system(GameState::InCombat, draw_skill_icons)
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::InCombat)
-                    .with_system(skill_button_interact)
-                    .into(),
-            )
+            .add_system(skill_button_interact.run_in_state(GameState::InCombat))
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
             .add_enter_system(SkillContextStatus::Open, draw_skill_context)
+            .add_system_set(
+                SystemSet::new()
+                    .with_system(prompt_window_interact.run_in_state(TargetPromptStatus::Open))
+                    .with_system(evread_targetselect)
+                    .into(),
+            )
+            // TargetPrompt
+            .add_loopless_state(TargetPromptStatus::Closed)
+            .add_enter_system(TargetPromptStatus::Open, draw_prompt_window)
             // despawning draws
-            .add_exit_system(WhoseTurn::Player, despawn_with::<ContextWindow>)
-            .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>);
+            .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
+            .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>);
     }
-}
-/// State indicating whether the character is interacting with the open world or in combat
-/// OutOfCombat: when character is in world, can move
-/// InCombat: when character is in combat, can't move
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GameState {
-    InCombat,
-    OutOfCombat,
 }
 
 const TEXT_COLOR: Color = Color::SILVER;
@@ -52,6 +49,10 @@ const HOVERED_BUTTON: Color = Color::rgb(0.35, 0.35, 0.35);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 struct CombatButtonEvent;
+
+// check skill detail, skills have built in targetting
+// TODO: prompt for target selection first
+struct TargetPromptEvent;
 
 /// placeholder camera here
 fn spawn_camera(mut commands: Commands) {
@@ -134,10 +135,121 @@ pub fn draw_skill_icons(
     }
 }
 
+/// TODO: selective drawing
+fn draw_prompt_window(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    units_q: Query<
+        (
+            Entity,
+            &LabelName,
+            Option<&Player>,
+            Option<&Ally>,
+            Option<&Enemy>,
+        ),
+        Or<(With<Enemy>, With<Player>, With<Ally>)>,
+    >,
+    // queue skill table to get target type
+    skill_q: Query<&Target, With<Skill>>,
+    // apply skill from here to filter units
+    selecting_skill: Res<SelectingSkill>,
+) {
+    let mut index: f32 = 0.;
+    let target_type = skill_q.get(selecting_skill.0.unwrap()).unwrap();
+    // filter out units not matching target type
+    let filtered_units =
+        units_q.iter().filter(
+            |(_, _, player_tag, ally_tag, enemy_tag)| match target_type {
+                Target::Player => player_tag.is_some(),
+                Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
+                Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
+                Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
+                Target::Any => true,
+                Target::AnyButSelf => player_tag.is_none(),
+            },
+        );
+    for (unit_ent, unit_name, _, _, _) in filtered_units {
+        commands
+            .spawn_bundle(ButtonBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        right: Val::Px(200.),
+                        top: Val::Px(200. + index * 60.),
+                        ..default()
+                    },
+                    size: Size::new(Val::Px(50.), Val::Px(50.)),
+                    border: UiRect::all(Val::Px(2.)),
+                    ..default()
+                },
+                color: Color::PINK.into(),
+                ..default()
+            })
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle::from_section(
+                    &unit_name.name,
+                    TextStyle {
+                        font: asset_server.load("font.ttf"),
+                        font_size: 20.,
+                        color: Color::WHITE,
+                    },
+                ));
+            })
+            .insert(TargetEnt(unit_ent))
+            .insert(PromptWindow);
+        index += 1.;
+    }
+}
+fn prompt_window_interact(
+    mut prompt_window_interaction_q: Query<
+        (&Interaction, &mut UiColor, &TargetEnt),
+        (Changed<Interaction>, With<PromptWindow>),
+    >,
+    mut ev_targetselect: EventWriter<TargetSelectEvent>,
+) {
+    for (interaction, mut color, target_ent) in &mut prompt_window_interaction_q {
+        match *interaction {
+            Interaction::Clicked => {
+                ev_targetselect.send(TargetSelectEvent(target_ent.0));
+                *color = Color::RED.into();
+            }
+            Interaction::Hovered => {
+                *color = Color::ORANGE_RED.into();
+            }
+            Interaction::None => {
+                *color = Color::PINK.into();
+            }
+        }
+    }
+}
+
+fn evread_targetselect(
+    mut ev_targetselect: EventReader<TargetSelectEvent>,
+    mut ev_castskill: EventWriter<CastSkillEvent>,
+    selecting_skill: Res<SelectingSkill>,
+) {
+    for target_ent in ev_targetselect.iter() {
+        debug!("should see");
+        debug!("{:?}", selecting_skill);
+        ev_castskill.send(CastSkillEvent {
+            skill_ent: SkillEnt(selecting_skill.0.unwrap()),
+            target: target_ent.0,
+        });
+    }
+}
+
 fn combat_button_interact(
     mut interaction_q: Query<
         (&Interaction, &mut UiColor, &Children),
-        (Changed<Interaction>, (With<Button>, Without<crate::Skill>)),
+        (
+            Changed<Interaction>,
+            (
+                With<Button>,
+                Without<Skill>,
+                Without<PromptWindow>,
+                Without<ContextWindow>,
+            ),
+        ),
     >,
     mut text_q: Query<&mut Text>,
     mut ev_buttonclick: EventWriter<CombatButtonEvent>,
@@ -171,6 +283,11 @@ pub enum SkillContextStatus {
     Open,
     Closed,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TargetPromptStatus {
+    Open,
+    Closed,
+}
 
 /// Event { SkillEnt }
 struct SkillContextEvent {
@@ -187,7 +304,7 @@ fn skill_button_interact(
     mut ev_castskill: EventWriter<CastSkillEvent>,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
     mut history: ResMut<ContextHistory>,
-    enemy_q: Query<Entity, With<Enemy>>
+    enemy_q: Query<Entity, With<Enemy>>,
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
@@ -200,18 +317,13 @@ fn skill_button_interact(
                 if context_state.0 == SkillContextStatus::Open {
                     match history.0.get(1) {
                         Some(b) => {
+                            // double click on the same skill
                             if b.0 == history.0.get(0).unwrap().0 {
-                                ev_castskill.send(CastSkillEvent {
-                                    skill_ent: *skill_ent,
-                                    target: enemy_q.single()
-                                    // debug for blocking
-                                    // target: player.single()
-                                });
-                                info!("CastSkillEvent {:?}", skill_ent);
                                 // reset history
                                 history.0 = Vec::new();
+                                commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
                                 commands.insert_resource(NextState(SkillContextStatus::Closed));
-                                commands.insert_resource(NextState(WhoseTurn::System));
+                                commands.insert_resource(NextState(TargetPromptStatus::Open));
                             }
                         }
                         None => {}
@@ -235,7 +347,10 @@ fn skill_button_interact(
     }
 }
 
-fn event_combat_button(mut commands: Commands, mut ev_buttonclick: EventReader<CombatButtonEvent>) {
+fn evread_combat_button(
+    mut commands: Commands,
+    mut ev_buttonclick: EventReader<CombatButtonEvent>,
+) {
     for _ in ev_buttonclick.iter() {
         // changing state
         info!("GameState::InCombat");
@@ -252,7 +367,8 @@ fn draw_skill_context(
     // TODO: complete with info text and window size + placements
     for ev in ev_skillcontext.iter() {
         if let Ok((name, dmg, block, heal)) = skill_q.get(ev.skill_ent.0) {
-            let (mut a, mut b, mut c): (String, String, String) = (String::new(), String::new(), String::new());
+            let (mut a, mut b, mut c): (String, String, String) =
+                (String::new(), String::new(), String::new());
             if dmg.is_some() {
                 a = format!("Deal {} points of Damage", dmg.unwrap().value)
             }

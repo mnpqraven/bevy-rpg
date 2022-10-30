@@ -8,7 +8,7 @@ impl Plugin for SpritePlugin {
             .add_startup_system_set_to_stage(
                 StartupStage::PostStartup,
                 SystemSet::new()
-                    .with_system(spawn_player)
+                    .with_system(spawn_friendlies)
                     // TODO: conditional spawning later
                     .with_system(spawn_enemy),
             );
@@ -47,7 +47,7 @@ pub fn load_ascii(
     let texture_atlas_handle = texture_atlas.add(atlas);
     commands.insert_resource(AsciiSheet(texture_atlas_handle));
 }
-pub fn spawn_player(mut commands: Commands, ascii: Res<AsciiSheet>) {
+pub fn spawn_friendlies(mut commands: Commands, ascii: Res<AsciiSheet>) {
     commands
         .spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
@@ -66,6 +66,19 @@ pub fn spawn_player(mut commands: Commands, ascii: Res<AsciiSheet>) {
         .insert(MaxHealth { value: 100 })
         .insert(Block::default())
         .insert(IsMoving(false));
+
+    // ally for debug
+    commands
+        .spawn()
+        .insert(Ally)
+        .insert(LabelName {
+            name: "Test ally".to_string(),
+        })
+        .insert(Health { value: 80 })
+        .insert(MaxHealth { value: 80 })
+        .insert(Mana { value: 30 })
+        .insert(Block::default())
+        .insert(IsMoving(false));
 }
 
 fn spawn_enemy(mut commands: Commands) {
@@ -77,6 +90,16 @@ fn spawn_enemy(mut commands: Commands) {
         })
         .insert(Health { value: 40 })
         .insert(MaxHealth { value: 40 })
+        .insert(Mana { value: 100 })
+        .insert(Block::default());
+    commands
+        .spawn()
+        .insert(Enemy)
+        .insert(LabelName {
+            name: "training dummy 2".to_string(),
+        })
+        .insert(Health { value: 100000000 })
+        .insert(MaxHealth { value: 100000000 })
         .insert(Mana { value: 100 })
         .insert(Block::default());
 }

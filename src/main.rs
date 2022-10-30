@@ -22,11 +22,11 @@ fn main() {
             level: bevy::log::Level::DEBUG,
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(crate::combat::CombatPlugin)
-        .add_plugin(crate::environment::EnvironmentPlugin)
-        .add_plugin(crate::game::GamePlugin)
-        .add_plugin(crate::menu::MenuPlugin)
         .add_plugin(crate::skills::SkillPlugin)
+        .add_plugin(crate::menu::MenuPlugin)
+        .add_plugin(crate::combat::CombatPlugin)
+        .add_plugin(crate::game::GamePlugin)
+        .add_plugin(crate::environment::EnvironmentPlugin)
         .add_system(bevy::window::close_on_esc)
         .run();
 }

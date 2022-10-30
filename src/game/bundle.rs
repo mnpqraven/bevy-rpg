@@ -7,6 +7,7 @@ pub struct SkillBundle {
     pub skill_group: SkillGroup,
     pub name: LabelName,
     pub skill: Skill, // tag
+    pub target: Target
 }
 #[derive(Bundle)]
 pub struct CharacterBundle {

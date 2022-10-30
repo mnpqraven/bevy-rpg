@@ -1,23 +1,14 @@
-pub mod ai;
-
+mod ai;
+mod eval;
+use self::eval::eval_skill;
+use crate::{
+    game::component::*,
+    menu::{despawn_with, draw_skill_icons},
+};
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
-use crate::{
-    game::component::*,
-    menu::{despawn_with, draw_skill_icons, GameState},
-};
-
 pub struct CombatPlugin;
-
-/// State indicating whether it's the character's turn yet and can act
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum WhoseTurn {
-    Player,
-    Enemy,
-    System,
-}
-
 /// queue who's the next in turn
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NextInTurn {
@@ -35,13 +26,27 @@ pub struct EnemyKilledEvent(Entity);
 pub struct TurnStartEvent;
 pub struct EnemyTurnStartEvent;
 
+pub struct TurnEndEvent;
+
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.add_loopless_state(WhoseTurn::Player)
             .add_loopless_state(NextInTurn::Enemy)
             // Player turn start
             .add_event::<TurnStartEvent>()
+            .add_event::<EnemyTurnStartEvent>()
             .add_event::<EnterWhiteOutEvent>()
+            // ----
+            .add_event::<EnemyKilledEvent>()
+            .add_system(ev_enemykilled)
+            // ----
+            .add_event::<CastSkillEvent>()
+            .add_system(ev_watch_castskill)
+            .add_event::<EvalSkillEvent>()
+            // ----
+            .add_event::<TurnEndEvent>()
+            .add_system(evread_endturn)
+            // ----
             .add_enter_system_set(
                 WhoseTurn::Player,
                 ConditionSet::new()
@@ -50,29 +55,13 @@ impl Plugin for CombatPlugin {
                     .into(),
             )
             .add_exit_system(WhoseTurn::Player, despawn_with::<SkillIcon>)
-            // Enemy turn start
-            .add_event::<EnemyTurnStartEvent>()
+            // ----
             .add_enter_system(WhoseTurn::Enemy, ev_enemy_turn_start)
-            // system - stat eval
+            // ----
             .add_enter_system_set(
                 WhoseTurn::System,
-                ConditionSet::new()
-                    .label("system_eval")
-                    .with_system(eval_skill)
-                    .into(),
-            )
-            // system - turn eval
-            .add_system_set(
-                ConditionSet::new()
-                    .label("reward_eval")
-                    .after("system_eval")
-                    // eval done, now solving turn
-                    .with_system(ev_reward.run_if(is_all_enemies_dead))
-                    .into(),
-            )
-            .add_event::<EnemyKilledEvent>()
-            .add_system(ev_enemykilled)
-            .add_system(ev_castskill.run_not_in_state(WhoseTurn::System));
+                ConditionSet::new().with_system(eval_skill).into(),
+            );
     }
 }
 
@@ -82,20 +71,14 @@ fn ev_enemy_turn_start(
     // TODO: refactor to other chunks later
     player: Query<Entity, With<Player>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
-    enemy_skill_q: Query<(Entity, &LabelName, &SkillGroup), With<SkillGroup>>,
+    enemy_skill_q: Query<(Entity, &SkillGroup), With<SkillGroup>>,
 ) {
     debug!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
-    for (enemy_skill_ent, enemy_skill_name, _) in enemy_skill_q
+    for (enemy_skill_ent, _) in enemy_skill_q
         .iter()
-        .filter(|(_, _, grp)| **grp == SkillGroup::Enemy)
+        .filter(|(_, grp)| **grp == SkillGroup::Enemy)
     {
-        info!(
-            "CastSkillEvent {:?} {}",
-            enemy_skill_ent, enemy_skill_name.name
-        );
-        // WARN: update WhoseTurn here with commands.insert_resource
-        // will cause infinite loop
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(enemy_skill_ent),
             target: player.single(),
@@ -103,14 +86,32 @@ fn ev_enemy_turn_start(
     }
 }
 
-fn ev_castskill(mut commands: Commands, mut ev_castskill: EventReader<CastSkillEvent>) {
-    // TODO: this works but think of a better way to use this instead of an extra method
-    // updates turn state when skill is cast, system handles evaluating skills
-    for _ in ev_castskill.iter() {
+/// watch for SkillCastEvent from other modules
+/// this will handle targetting for now
+fn ev_watch_castskill(
+    mut commands: Commands,
+    mut ev_castskill: EventReader<CastSkillEvent>,
+    skill_q: Query<(Entity, &LabelName, &Target), With<Skill>>,
+    mut ev_skilltoeval: EventWriter<EvalSkillEvent>,
+) {
+    for ev in ev_castskill.iter() {
+        for (skill_ent, skill_name, skill_target) in
+            skill_q.iter().filter(|ent| ent.0 == ev.skill_ent.0)
+        {
+            info!("CastSkillEvent {:?} {:?} {:?}", skill_ent, skill_name.name, skill_target);
+        }
         commands.insert_resource(NextState(WhoseTurn::System));
+        ev_skilltoeval.send(EvalSkillEvent {
+            skill: ev.skill_ent.0,
+            target: ev.target,
+        });
     }
 }
 
+pub struct EvalSkillEvent {
+    skill: Entity,
+    target: Entity,
+}
 fn ev_player_turn_start() {
     debug!("WhoseTurn::Player");
 }
@@ -124,69 +125,24 @@ fn ev_player_turn_start() {
 pub struct WhiteOut;
 pub struct EnterWhiteOutEvent(Entity);
 
-/// calculates changes to an unit's stat
-/// TODO: implement for player + Target component to modularize
-fn eval_skill(
-    mut unit: Query<(Entity, &LabelName, &mut Health, &mut Block, Option<&Player>), Without<Skill>>,
-    skill_q: Query<
-        (Entity, Option<&Block>, Option<&Damage>, Option<&Heal>),
-        (With<Skill>, Without<Player>, Without<Enemy>),
-    >, // basic first
-    mut ev_castskill: EventReader<CastSkillEvent>,
-    mut ev_enemykilled: EventWriter<EnemyKilledEvent>,
-    next_in_turn: Res<CurrentState<NextInTurn>>,
+fn evread_endturn(
     mut commands: Commands,
+    mut ev_endturn: EventReader<TurnEndEvent>,
+    next_in_turn: Res<CurrentState<NextInTurn>>,
 ) {
-    for ev in ev_castskill.iter() {
-        let (target_ent, target_name, mut target_health, mut target_block, target_player_tag) =
-            unit.get_mut(ev.target).unwrap();
-        let target_is_ally = match target_player_tag {
-            Some(_) => true,
-            None => false,
-        };
-        for (skill_ent, block, damage, _heal) in skill_q.iter() {
-            if skill_ent == ev.skill_ent.0 {
-                if block.is_some() {
-                    target_block.value += block.unwrap().value;
-                    debug!("should see {} block {}", target_name.name, target_block.value);
-                }
-                if damage.is_some() {
-                    let bleed_through = match damage.unwrap().value > target_block.value {
-                        true => damage.unwrap().value - target_block.value,
-                        false => 0
-                    };
-                    target_health.value -= bleed_through;
-                    info!(
-                        "target {} now has {} hp",
-                        target_name.name, target_health.value
-                    );
-                }
-                if target_health.value <= 0 {
-                    match target_is_ally {
-                        true => {
-                            // EnterWhiteOutEvent
-                            commands.entity(target_ent).insert(WhiteOut);
-                        }
-                        false => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
-                    }
-                } else {
-                    // eval done, update next turn state and queue
-                    match next_in_turn.0 {
-                        NextInTurn::Player => {
-                            commands.insert_resource(NextState(NextInTurn::Enemy));
-                            commands.insert_resource(NextState(WhoseTurn::Player));
-                        }
-                        NextInTurn::Enemy => {
-                            commands.insert_resource(NextState(NextInTurn::Player));
-                            commands.insert_resource(NextState(WhoseTurn::Enemy));
-                        }
-                    }
-                }
+    for _ in ev_endturn.iter() {
+        match next_in_turn.0 {
+            NextInTurn::Player => {
+                commands.insert_resource(NextState(NextInTurn::Enemy));
+                commands.insert_resource(NextState(WhoseTurn::Player));
+            }
+            NextInTurn::Enemy => {
+                commands.insert_resource(NextState(NextInTurn::Player));
+                commands.insert_resource(NextState(WhoseTurn::Enemy));
             }
         }
     }
 }
-
 /// event triggers when an enemy dies
 fn ev_enemykilled(mut ev_enemykilled: EventReader<EnemyKilledEvent>, mut commands: Commands) {
     for ev in ev_enemykilled.iter() {
