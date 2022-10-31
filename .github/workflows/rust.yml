@@ -15,14 +15,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: install latest nightly
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - name: install mold
-      uses: rui314/setup-mold@v1
-    - name: run cargo check
-    - uses: actions-rs/cargo@v1
-      with:
-        command: check
+      - uses: actions/checkout@v3
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+
+            # `cargo check` command here will use installed `nightly`
+            # as it is set as an "override" for current directory
+      - name: install mold
+        uses: rui314/setup-mold@v1
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
