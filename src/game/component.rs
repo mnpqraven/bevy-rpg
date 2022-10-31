@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::Inspectable;
+use serde::{Serialize, Deserialize};
 
 /// CP
 /// User-controlled component
@@ -81,7 +82,8 @@ pub struct IsMoving(pub bool);
 
 /// CP
 /// denotes the targetting type that the character's skill can have effect on
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Serialize, Deserialize, Clone)]
+#[serde(rename="target")]
 pub enum Target {
     Player,
     Ally,
@@ -101,7 +103,8 @@ pub struct SelectingSkill(pub Option<Entity>);
 
 /// CP
 /// whether a skill can only be cast by frienlies or enemies, or both
-#[derive(Component, PartialEq, Eq)]
+#[derive(Component, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename="skill_group")]
 pub enum SkillGroup {
     Ally,
     Enemy,
