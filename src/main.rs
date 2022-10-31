@@ -1,6 +1,7 @@
 use bevy::{log::LogSettings, prelude::*};
 
-use game::component::*;
+use bevy_inspector_egui::{WorldInspectorPlugin, RegisterInspectable};
+use game::component::LabelName;
 
 mod combat;
 mod environment;
@@ -27,6 +28,9 @@ fn main() {
         .add_plugin(crate::combat::CombatPlugin)
         .add_plugin(crate::game::GamePlugin)
         .add_plugin(crate::environment::EnvironmentPlugin)
+        // 3rd party plugins
+        .add_plugin(WorldInspectorPlugin::new())
+        .register_inspectable::<LabelName>()
         .add_system(bevy::window::close_on_esc)
         .run();
 }
