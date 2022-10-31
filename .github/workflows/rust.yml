@@ -24,9 +24,9 @@ jobs:
         mkdir mold/build
         cd mold/build
         git checkout v1.6.0
-        ../install-build-deps.sh
-        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-        cmake --build . -j $(nproc)
+        sudo ../install-build-deps.sh
+        sudo cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+        sudo cmake --build . -j $(nproc)
         sudo cmake --install .
     - name: Build
       run: cargo build --verbose
