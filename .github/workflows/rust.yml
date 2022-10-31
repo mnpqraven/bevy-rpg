@@ -17,7 +17,17 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: update
-      run: sudo apt-get update; sudo apt-get install --no-install-recommends clang mold
+      run: sudo apt-get update; sudo apt-get install --no-install-recommends clang
+    - name: compile mold
+      run: |
+        git clone https://github.com/rui314/mold.git
+        mkdir mold/build
+        cd mold/build
+        git checkout v1.6.0
+        ../install-build-deps.sh
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+        cmake --build . -j $(nproc)
+        sudo cmake --install .
     - name: Build
       run: cargo build --verbose
     - name: Run tests
