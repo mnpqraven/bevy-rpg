@@ -1,5 +1,6 @@
 mod style;
 
+use crate::game::despawn_with;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
@@ -14,8 +15,8 @@ impl Plugin for MenuPlugin {
             .add_event::<TargetPromptEvent>()
             .add_event::<TargetSelectEvent>()
             .insert_resource(SelectingSkill(None))
-            .insert_resource(ContextHistory(Vec::new()))
-            .add_startup_system(spawn_combat_button)
+            .insert_resource(ContextHistory(None))
+            .add_startup_system(draw_combat_button)
             .add_system_set(
                 SystemSet::new()
                     .with_system(combat_button_interact)
@@ -28,6 +29,7 @@ impl Plugin for MenuPlugin {
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
             .add_enter_system(SkillContextStatus::Open, draw_skill_context)
+            .add_system(mouse_input_interact)
             .add_system_set(
                 SystemSet::new()
                     .with_system(prompt_window_interact.run_in_state(TargetPromptStatus::Open))
@@ -59,7 +61,7 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn_bundle(Camera2dBundle::default());
 }
 
-fn spawn_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn draw_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn_bundle(ButtonBundle {
             style: Style {
@@ -293,6 +295,27 @@ pub enum TargetPromptStatus {
 struct SkillContextEvent {
     skill_ent: SkillEnt,
 }
+/// handles input for mouse
+/// only right click for now, left click is already handled by context windows
+/// TODO: test
+fn mouse_input_interact(
+    mut commands: Commands,
+    buttons: Res<Input<MouseButton>>,
+    context_state: Res<CurrentState<SkillContextStatus>>,
+    prompt_state: Res<CurrentState<TargetPromptStatus>>,
+) {
+    if buttons.pressed(MouseButton::Right) {
+        match prompt_state.0 {
+            TargetPromptStatus::Open => {
+                commands.insert_resource(NextState(TargetPromptStatus::Closed))
+            }
+            TargetPromptStatus::Closed if context_state.0 == SkillContextStatus::Open => {
+                commands.insert_resource(NextState(SkillContextStatus::Closed))
+            }
+            _ => {}
+        }
+    }
+}
 /// shows info on hover, send event on click
 fn skill_button_interact(
     context_state: Res<CurrentState<SkillContextStatus>>,
@@ -301,41 +324,38 @@ fn skill_button_interact(
         (&Interaction, &mut UiColor, &SkillEnt),
         (Changed<Interaction>, With<Button>, With<Skill>),
     >,
-    mut ev_castskill: EventWriter<CastSkillEvent>,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
     mut history: ResMut<ContextHistory>,
-    enemy_q: Query<Entity, With<Enemy>>,
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
             Interaction::Clicked => {
-                history.0.push(*skill_ent);
-                if history.0.len() > 2 {
-                    history.0.remove(0);
-                }
                 // if a context window is already opened
-                if context_state.0 == SkillContextStatus::Open {
-                    match history.0.get(1) {
-                        Some(b) => {
-                            // double click on the same skill
-                            if b.0 == history.0.get(0).unwrap().0 {
-                                // reset history
-                                history.0 = Vec::new();
-                                commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
-                                commands.insert_resource(NextState(SkillContextStatus::Closed));
-                                commands.insert_resource(NextState(TargetPromptStatus::Open));
-                            }
-                        }
-                        None => {}
+                match context_state.0 {
+                    // same skill selected > open prompt window
+                    SkillContextStatus::Open if history.0 == Some(*skill_ent) => {
+                        commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
+                        commands.insert_resource(NextState(SkillContextStatus::Closed));
+                        commands.insert_resource(NextState(TargetPromptStatus::Open));
                     }
-                } else {
+                    // different skill selected > despawn and redraw
+                    SkillContextStatus::Open => {
+                        commands.insert_resource(NextState(SkillContextStatus::Closed));
+                        commands.insert_resource(NextState(SkillContextStatus::Open));
+                        ev_skillcontext.send(SkillContextEvent {
+                            skill_ent: *skill_ent,
+                        });
+                    }
                     // fresh context window
-                    commands.insert_resource(NextState(SkillContextStatus::Open));
-                    ev_skillcontext.send(SkillContextEvent {
-                        skill_ent: *skill_ent,
-                    });
+                    SkillContextStatus::Closed => {
+                        commands.insert_resource(NextState(SkillContextStatus::Open));
+                        ev_skillcontext.send(SkillContextEvent {
+                            skill_ent: *skill_ent,
+                        });
+                    }
                 }
                 *color = PRESSED_BUTTON.into();
+                history.0 = Some(*skill_ent);
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
@@ -450,11 +470,5 @@ fn draw_skill_context(
                 })
                 .insert(ContextWindow);
         }
-    }
-}
-
-pub fn despawn_with<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
-    for ent in query.iter() {
-        commands.entity(ent).despawn_recursive();
     }
 }

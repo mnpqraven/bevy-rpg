@@ -12,3 +12,9 @@ impl Plugin for GamePlugin {
         .add_plugin(sprites::SpritePlugin);
     }
 }
+
+pub fn despawn_with<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
+    for ent in query.iter() {
+        commands.entity(ent).despawn_recursive();
+    }
+}
