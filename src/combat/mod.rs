@@ -1,11 +1,8 @@
 mod ai;
 mod eval;
-use crate::game::despawn_with;
 use self::eval::eval_skill;
-use crate::{
-    game::component::*,
-    menu::draw_skill_icons,
-};
+use crate::game::component::*;
+use crate::game::despawn_with;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
@@ -48,13 +45,7 @@ impl Plugin for CombatPlugin {
             .add_event::<TurnEndEvent>()
             .add_system(evread_endturn)
             // ----
-            .add_enter_system_set(
-                WhoseTurn::Player,
-                ConditionSet::new()
-                    .with_system(ev_player_turn_start)
-                    .with_system(draw_skill_icons.run_in_state(GameState::InCombat))
-                    .into(),
-            )
+            .add_enter_system(WhoseTurn::Player, ev_player_turn_start)
             .add_exit_system(WhoseTurn::Player, despawn_with::<SkillIcon>)
             // ----
             .add_enter_system(WhoseTurn::Enemy, ev_enemy_turn_start)
@@ -99,7 +90,10 @@ fn ev_watch_castskill(
         for (skill_ent, skill_name, skill_target) in
             skill_q.iter().filter(|ent| ent.0 == ev.skill_ent.0)
         {
-            info!("CastSkillEvent {:?} {:?} {:?}", skill_ent, skill_name.name, skill_target);
+            info!(
+                "CastSkillEvent {:?} {:?} {:?}",
+                skill_ent, skill_name.name, skill_target
+            );
         }
         commands.insert_resource(NextState(WhoseTurn::System));
         ev_skilltoeval.send(EvalSkillEvent {
@@ -150,7 +144,4 @@ fn ev_enemykilled(mut ev_enemykilled: EventReader<EnemyKilledEvent>, mut command
         info!("{:?} slain", ev.0);
         commands.entity(ev.0).despawn();
     }
-}
-fn is_all_enemies_dead(query: Query<&Enemy>) -> bool {
-    query.is_empty()
 }

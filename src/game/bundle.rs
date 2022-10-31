@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::game::component::*;
 
+/// only required fields for a skill, you must manually add other optional fields
 #[derive(Bundle)]
 pub struct SkillBundle {
     pub name: LabelName,

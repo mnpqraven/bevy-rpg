@@ -6,7 +6,7 @@ use game::component::LabelName;
 mod combat;
 mod environment;
 mod game;
-mod menu;
+mod ui;
 mod skills;
 
 fn main() {
@@ -22,12 +22,14 @@ fn main() {
             filter: "info,wgpu_core=warn,wgpu_hal=warn,othirpg=debug".into(),
             level: bevy::log::Level::DEBUG,
         })
+        // bevy plugins
         .add_plugins(DefaultPlugins)
-        .add_plugin(crate::skills::SkillPlugin)
-        .add_plugin(crate::menu::MenuPlugin)
-        .add_plugin(crate::combat::CombatPlugin)
-        .add_plugin(crate::game::GamePlugin)
-        .add_plugin(crate::environment::EnvironmentPlugin)
+        // user modules
+        .add_plugin(skills::SkillPlugin)
+        .add_plugin(ui::UIPlugin)
+        .add_plugin(combat::CombatPlugin)
+        .add_plugin(game::GamePlugin)
+        .add_plugin(environment::EnvironmentPlugin)
         // 3rd party plugins
         .add_plugin(WorldInspectorPlugin::new())
         .register_inspectable::<LabelName>()

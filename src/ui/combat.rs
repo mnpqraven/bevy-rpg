@@ -1,13 +1,14 @@
-mod style;
-
 use crate::game::despawn_with;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
 use crate::game::component::*;
-pub struct MenuPlugin;
 
-impl Plugin for MenuPlugin {
+use super::*;
+
+pub struct CombatUIPlugin;
+
+impl Plugin for CombatUIPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(spawn_camera)
             .add_event::<CombatButtonEvent>()
@@ -24,7 +25,8 @@ impl Plugin for MenuPlugin {
             )
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
-            .add_enter_system(GameState::InCombat, draw_skill_icons)
+            .add_loopless_state(SkillWheelStatus::Closed)
+            .add_enter_system(SkillWheelStatus::Open, draw_skill_icons)
             .add_system(skill_button_interact.run_in_state(GameState::InCombat))
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
@@ -40,6 +42,7 @@ impl Plugin for MenuPlugin {
             .add_loopless_state(TargetPromptStatus::Closed)
             .add_enter_system(TargetPromptStatus::Open, draw_prompt_window)
             // despawning draws
+            .add_exit_system(SkillWheelStatus::Open, despawn_with::<SkillIcon>)
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
             .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>);
     }
@@ -130,7 +133,7 @@ pub fn draw_skill_icons(
                     },
                 ));
             })
-            // dump skill data here
+            // add button specific component meta
             .insert(SkillEnt(skill_ent))
             .insert(SkillIcon);
         index += 1;
@@ -255,6 +258,7 @@ fn combat_button_interact(
     >,
     mut text_q: Query<&mut Text>,
     mut ev_buttonclick: EventWriter<CombatButtonEvent>,
+    mut commands: Commands
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
         // NOTE: grabbing children data here
@@ -265,6 +269,7 @@ fn combat_button_interact(
                 text_data.sections[0].value = "clicked".to_string();
                 *color = PRESSED_BUTTON.into();
                 ev_buttonclick.send(CombatButtonEvent);
+                commands.insert_resource(NextState(SkillWheelStatus::Open));
             }
             Interaction::Hovered => {
                 text_data.sections[0].value = "hovered".to_string();
@@ -295,9 +300,9 @@ pub enum TargetPromptStatus {
 struct SkillContextEvent {
     skill_ent: SkillEnt,
 }
+
 /// handles input for mouse
 /// only right click for now, left click is already handled by context windows
-/// TODO: test
 fn mouse_input_interact(
     mut commands: Commands,
     buttons: Res<Input<MouseButton>>,
@@ -306,11 +311,14 @@ fn mouse_input_interact(
 ) {
     if buttons.pressed(MouseButton::Right) {
         match prompt_state.0 {
+            // hides prompt
             TargetPromptStatus::Open => {
-                commands.insert_resource(NextState(TargetPromptStatus::Closed))
+                commands.insert_resource(NextState(TargetPromptStatus::Closed));
+                commands.insert_resource(NextState(SkillWheelStatus::Open));
             }
+            // hides context window
             TargetPromptStatus::Closed if context_state.0 == SkillContextStatus::Open => {
-                commands.insert_resource(NextState(SkillContextStatus::Closed))
+                commands.insert_resource(NextState(SkillContextStatus::Closed));
             }
             _ => {}
         }
@@ -336,6 +344,7 @@ fn skill_button_interact(
                     SkillContextStatus::Open if history.0 == Some(*skill_ent) => {
                         commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
                         commands.insert_resource(NextState(SkillContextStatus::Closed));
+                        commands.insert_resource(NextState(SkillWheelStatus::Closed));
                         commands.insert_resource(NextState(TargetPromptStatus::Open));
                     }
                     // different skill selected > despawn and redraw
