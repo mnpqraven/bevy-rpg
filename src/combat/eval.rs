@@ -48,7 +48,7 @@ pub fn eval_skill(
                             // EnterWhiteOutEvent
                             commands.entity(target_ent).insert(WhiteOut);
                         }
-                        none => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
+                        None => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
                     }
                 } else {
                     ev_endturn.send(TurnEndEvent);

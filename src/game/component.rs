@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_inspector_egui::Inspectable;
 
 /// CP
 /// User-controlled component
@@ -14,7 +15,7 @@ pub struct Enemy;
 
 /// CP
 /// LabelName (Crate Name) to avoid conflict with bevy's Name struct
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, Inspectable)]
 pub struct LabelName {
     pub name: String,
 }
@@ -26,7 +27,7 @@ pub struct Skill;
 #[derive(Component)]
 pub struct Learned(pub bool);
 /// CP
-#[derive(Component, Debug, Copy, Clone)]
+#[derive(Component, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SkillEnt(pub Entity);
 
 // STATS ============
@@ -118,7 +119,7 @@ pub struct SkillIcon;
 
 /// Vector of 2, pass true to same_skill_selected if both are equal
 #[derive(Component, Debug)]
-pub struct ContextHistory(pub Vec<SkillEnt>);
+pub struct ContextHistory(pub Option<SkillEnt>);
 
 /// Event { Entity }: entity id of the target (by skill/user)
 pub struct TargetSelectEvent(pub Entity);

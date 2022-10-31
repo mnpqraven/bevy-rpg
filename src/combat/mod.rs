@@ -1,9 +1,10 @@
 mod ai;
 mod eval;
+use crate::game::despawn_with;
 use self::eval::eval_skill;
 use crate::{
     game::component::*,
-    menu::{despawn_with, draw_skill_icons},
+    menu::draw_skill_icons,
 };
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;

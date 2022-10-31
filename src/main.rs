@@ -1,12 +1,12 @@
 use bevy::{log::LogSettings, prelude::*};
 
-use bevy_inspector_egui::{WorldInspectorPlugin, RegisterInspectable};
+use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
 use game::component::LabelName;
 
 mod combat;
 mod environment;
-mod menu;
 mod game;
+mod menu;
 mod skills;
 
 fn main() {
@@ -32,5 +32,14 @@ fn main() {
         .add_plugin(WorldInspectorPlugin::new())
         .register_inspectable::<LabelName>()
         .add_system(bevy::window::close_on_esc)
+        .add_startup_system(x11_scale)
         .run();
+}
+/// 1x scale factor for small screen (debug)
+fn x11_scale(mut windows: ResMut<Windows>) {
+    if std::env::consts::OS.eq("linux") {
+        for window in windows.iter_mut() {
+            window.set_scale_factor_override(Some(1.));
+        }
+    }
 }
