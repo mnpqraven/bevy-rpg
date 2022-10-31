@@ -16,13 +16,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: rui314/setup-mold@v1
-    - uses: actions-rs/toolchain@v1
-    - with:
-      toolchain: stable
-    - name: update
-      run: sudo apt-get update; sudo apt-get install --no-install-recommends clang
+    - name: install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - name: install mold
+      uses: rui314/setup-mold@v1
+    - name: run cargo check
     - uses: actions-rs/cargo@v1
       with:
-        command: build
-        args: --release
+        command: check
