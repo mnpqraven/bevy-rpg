@@ -1,4 +1,10 @@
+//! ===========================================================================
+//! Global components that are being used by different modules
+//! ===========================================================================
+
 use bevy::prelude::*;
+use bevy_inspector_egui::Inspectable;
+use serde::{Deserialize, Serialize};
 
 /// CP
 /// User-controlled component
@@ -9,16 +15,37 @@ pub struct Player;
 #[derive(Component, Debug)]
 pub struct Ally;
 /// CP
-#[derive(Component,Debug)]
+#[derive(Component, Debug)]
 pub struct Enemy;
-
 /// CP
 /// LabelName (Crate Name) to avoid conflict with bevy's Name struct
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, Inspectable)]
 pub struct LabelName {
     pub name: String,
 }
-
+/// CP
+/// denotes the targetting type that the character's skill can have effect on
+#[derive(Component, Debug, Serialize, Deserialize, Clone)]
+#[serde(rename = "target")]
+pub enum Target {
+    Player,
+    Ally,
+    AllyButSelf,
+    AllyAOE,
+    Enemy,
+    EnemyAOE,
+    Any,
+    AnyButSelf,
+}
+/// CP
+/// whether a skill can only be cast by frienlies or enemies, or both
+#[derive(Component, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename = "skill_group")]
+pub enum SkillGroup {
+    Ally,
+    Enemy,
+    Universal,
+}
 /// CP, tag
 #[derive(Component, Debug)]
 pub struct Skill;
@@ -26,7 +53,8 @@ pub struct Skill;
 #[derive(Component)]
 pub struct Learned(pub bool);
 /// CP
-#[derive(Component, Debug, Copy, Clone)]
+/// carries skill entity id
+#[derive(Component, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SkillEnt(pub Entity);
 
 // STATS ============
@@ -65,67 +93,22 @@ impl Default for Block {
 pub struct Heal {
     pub value: i32,
 }
-/// CP, movement direction, should(?) be linked with keyboard input
-#[derive(Component)]
-pub enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
 /// CP
 /// whether the character is moving in env state
 #[derive(Component)]
 pub struct IsMoving(pub bool);
 
-/// CP
-/// denotes the targetting type that the character's skill can have effect on
-#[derive(Component, Debug)]
-pub enum Target {
-    Player,
-    Ally,
-    AllyButSelf,
-    AllyAOE,
-    Enemy,
-    EnemyAOE,
-    Any,
-    AnyButSelf
-}
-
 #[derive(Component, Debug)]
 pub struct TargetEnt(pub Entity);
 
-#[derive(Component, Debug)]
-pub struct SelectingSkill(pub Option<Entity>);
-
-/// CP
-/// whether a skill can only be cast by frienlies or enemies, or both
-#[derive(Component, PartialEq, Eq)]
-pub enum SkillGroup {
-    Ally,
-    Enemy,
-    Universal,
-}
-
 // UI ===============
-/// CP, Tag
-#[derive(Component)]
-pub struct ContextWindow;
-#[derive(Component)]
-pub struct PromptWindow;
 #[derive(Component)]
 pub struct SkillIcon;
 
-/// Vector of 2, pass true to same_skill_selected if both are equal
-#[derive(Component, Debug)]
-pub struct ContextHistory(pub Vec<SkillEnt>);
-
-/// Event { Entity }: entity id of the target (by skill/user)
-pub struct TargetSelectEvent(pub Entity);
 /// Event { SkillEnt }
 pub struct CastSkillEvent {
     pub skill_ent: SkillEnt,
-    pub target: Entity
+    pub target: Entity,
 }
 
 /// State indicating whether it's the character's turn yet and can act

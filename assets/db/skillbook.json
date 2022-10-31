@@ -1,6 +1,7 @@
 [
-  { "LabelName": "Strike", "Damage": 7,  "SkillGroup": "Universal" },
-  { "LabelName": "Block", "Block": 5, "SkillGroup": "Universal" },
-  { "LabelName": "Heal", "Heal": 5, "SkillGroup": "Universal" },
-  { "LabelName": "Bash", "Damage": 12, "Mana": 25,"SkillGroup": "Ally" }
+    { "label_name": "Basic Strike", "skill_group": "Universal", "target": "Enemy", "damage": 7, "learned": true },
+    { "label_name": "Basic block", "skill_group": "Universal", "target": "Enemy", "block": 5, "learned": true },
+    { "label_name": "Basic heal", "skill_group": "Universal", "target": "Enemy", "heal": 5, "learned": true },
+    { "label_name": "Bash", "skill_group": "Ally", "target": "Enemy", "mana": 25, "damage": 12, "learned": true },
+    { "label_name": "Bite", "skill_group": "Ally", "target": "Enemy", "damage": 13 }
 ]

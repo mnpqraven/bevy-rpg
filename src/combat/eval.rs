@@ -22,10 +22,6 @@ pub fn eval_skill(
     for ev in ev_evalskill.iter() {
         let (target_ent, target_name, mut target_health, mut target_block, target_player_tag) =
             unit.get_mut(ev.target).unwrap();
-        let target_is_ally = match target_player_tag {
-            Some(_) => true,
-            None => false,
-        };
         for (skill_ent, block, damage, _heal) in skill_q.iter() {
             if skill_ent == ev.skill {
                 if block.is_some() {
@@ -47,12 +43,12 @@ pub fn eval_skill(
                     );
                 }
                 if target_health.value <= 0 {
-                    match target_is_ally {
-                        true => {
+                    match target_player_tag {
+                        Some(_) => {
                             // EnterWhiteOutEvent
                             commands.entity(target_ent).insert(WhiteOut);
                         }
-                        false => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
+                        None => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
                     }
                 } else {
                     ev_endturn.send(TurnEndEvent);

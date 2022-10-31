@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::game::component::{Direction, *};
+use crate::game::component::*;
 
 pub struct EnvironmentPlugin;
 
@@ -17,7 +17,7 @@ fn logic_input_movement(
 ) {
     for (mut is_moving, mut transform) in &mut sprite_pos {
         // let mut dir: Direction = Direction::Down; // facing the screen
-        let dir: crate::game::component::Direction = match input.get_pressed().next() {
+        let dir: Direction = match input.get_pressed().next() {
             Some(KeyCode::W) => {
                 is_moving.0 = true;
                 Direction::Up
@@ -48,4 +48,13 @@ fn logic_input_movement(
             }
         }
     }
+}
+
+/// CP, movement direction, should(?) be linked with keyboard input
+#[derive(Component)]
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
 }
