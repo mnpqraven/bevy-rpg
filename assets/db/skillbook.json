@@ -42,5 +42,14 @@
         "heal": 15,
         "channel": 1,
         "learned": true
+    },
+    {
+        "label_name": "Supernova",
+        "skill_group": "Ally",
+        "target": "EnemyAOE",
+        "mana": 30,
+        "damage": 50,
+        "channel": 3,
+        "learned": true
     }
 ]

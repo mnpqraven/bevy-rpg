@@ -36,7 +36,7 @@ pub enum Target {
     EnemyAOE,
     Any,
     AnyButSelf,
-    NoneButSelf
+    NoneButSelf,
 }
 /// CP
 /// whether a skill can only be cast by frienlies or enemies, or both
@@ -104,6 +104,11 @@ pub struct TargetEnt(pub Entity);
 
 #[derive(Component, Debug, Inspectable, Deref, DerefMut)]
 pub struct Channel(pub u32);
+#[derive(Component)]
+pub struct Casting {
+    pub skill_ent: Entity,
+    pub target_ent: Entity,
+}
 
 // UI ===============
 #[derive(Component)]
@@ -124,7 +129,7 @@ pub enum TargetPromptStatus {
 pub struct CastSkillEvent {
     pub skill_ent: SkillEnt,
     pub target: Entity,
-    pub caster: Entity
+    pub caster: Entity,
 }
 
 /// State indicating whether it's the character's turn yet and can act

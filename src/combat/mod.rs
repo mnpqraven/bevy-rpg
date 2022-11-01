@@ -59,6 +59,43 @@ impl Plugin for CombatPlugin {
 
 fn ev_reward() {}
 
+// TODO: modularize
+fn ev_player_turn_start(
+    mut commands: Commands,
+    mut casting_ally_q: Query<(Entity, &mut Channel, &Casting), With<Player>>,
+    skill_q: Query<(Option<&Damage>, Option<&Heal>), With<Skill>>,
+    mut unit_q: Query<&mut Health>
+) {
+    info!("WhoseTurn::Player");
+    // handle channel
+    for (unit_ent, mut unit_channel, unit_casting) in &mut casting_ally_q {
+        match unit_channel.0 {
+            1 => {
+                commands.entity(unit_ent).remove::<Channel>();
+                commands.entity(unit_ent).remove::<Casting>();
+                debug!("{:?}", unit_casting.skill_ent);
+                let (skill_damage, skill_heal) = skill_q.get(unit_casting.skill_ent).unwrap();
+                let mut target_hp = unit_q.get_mut(unit_casting.target_ent).unwrap();
+                if let Some(heal) = skill_heal {
+                    target_hp.value += heal.value;
+                }
+                if let Some(damage) = skill_damage {
+                    // FIXME: damage already applied during skill press
+                    debug!("{} {}", &target_hp.value, &damage.value);
+                    target_hp.value -= damage.value;
+                }
+                debug!("{:?}", &target_hp.value);
+                // allow choosing skill
+
+            }
+            _ => {
+                // TODO: skips player turn if casting
+                unit_channel.0 -= 1;
+                // commands.insert_resource(NextState(WhoseTurn::System));
+             },
+        }
+    }
+}
 fn ev_enemy_turn_start(
     // TODO: refactor to other chunks later
     player: Query<Entity, With<Player>>,
@@ -66,7 +103,7 @@ fn ev_enemy_turn_start(
     mut ev_castskill: EventWriter<CastSkillEvent>,
     enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
 ) {
-    debug!("WhoseTurn::Enemy");
+    info!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
     // TODO: fetch skill ent from enemy ai algorithm
     for (enemy_skill_ent, _) in enemy_skill_q
@@ -76,7 +113,7 @@ fn ev_enemy_turn_start(
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(enemy_skill_ent),
             target: player.single(),
-            caster: enemies.iter().next().unwrap()
+            caster: enemies.iter().next().unwrap(),
         });
     }
 }
@@ -97,6 +134,11 @@ fn ev_watch_castskill(
                 "CastSkillEvent {:?} {:?} ({:?}) => {:?}",
                 skill_ent, skill_name.name, skill_target, ev.caster
             );
+            if let Some(skill_channel) = skill_channel {
+                commands.entity(ev.caster)
+                .insert(Channel(skill_channel.0))
+                .insert(Casting{ skill_ent, target_ent: ev.target });
+            }
         }
         commands.insert_resource(NextState(WhoseTurn::System));
         ev_skilltoeval.send(EvalSkillEvent {
@@ -104,16 +146,14 @@ fn ev_watch_castskill(
             target: ev.target,
             caster: ev.caster,
         });
+        // assign channel component to unit entities
     }
 }
 
 pub struct EvalSkillEvent {
     skill: Entity,
     target: Entity,
-    caster: Entity
-}
-fn ev_player_turn_start() {
-    debug!("WhoseTurn::Player");
+    caster: Entity,
 }
 
 // NOTE: new mechanics

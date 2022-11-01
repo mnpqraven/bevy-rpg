@@ -98,8 +98,8 @@ fn spawn_enemy(mut commands: Commands) {
         .insert(LabelName {
             name: "training dummy 2".to_string(),
         })
-        .insert(Health { value: 100000000 })
-        .insert(MaxHealth { value: 100000000 })
+        .insert(Health { value: 9999 })
+        .insert(MaxHealth { value: 9999 })
         .insert(Mana { value: 100 })
         .insert(Block { value: 2 });
 }

@@ -14,7 +14,7 @@ pub fn eval_skill(
         Without<Skill>,
     >,
     skill_q: Query<
-        (Entity, Option<&Block>, Option<&Damage>, Option<&Heal>),
+        (Entity, Option<&Block>, Option<&Damage>, Option<&Heal>, Option<&Channel>),
         (With<Skill>, Without<Player>, Without<Enemy>),
     >,
     mut ev_evalskill: EventReader<EvalSkillEvent>,
@@ -25,11 +25,16 @@ pub fn eval_skill(
     for ev in ev_evalskill.iter() {
         let (target_ent, target_name, mut target_health, mut target_block, target_player_tag) =
             target.get_mut(ev.target).unwrap();
-        for (skill_ent, block, damage, heal) in skill_q.iter() {
+        for (skill_ent, block, damage, heal, channel) in skill_q.iter() {
             if skill_ent == ev.skill {
+                // TODO: modularize
+                let (mut heal, mut damage) = (heal, damage);
+                if channel.is_some() {
+                    (heal, damage) = (None, None);
+                }
                 if block.is_some() {
                     target_block.value += block.unwrap().value;
-                    debug!("Unit {}; Block {}", target_name.name, target_block.value);
+                    info!("Unit {}; Block {}", target_name.name, target_block.value);
                 }
                 if damage.is_some() {
                     let bleed_through = match damage.unwrap().value > target_block.value {
