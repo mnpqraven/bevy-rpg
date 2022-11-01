@@ -62,11 +62,13 @@ fn ev_reward() {}
 fn ev_enemy_turn_start(
     // TODO: refactor to other chunks later
     player: Query<Entity, With<Player>>,
+    enemies: Query<Entity, With<Enemy>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
-    enemy_skill_q: Query<(Entity, &SkillGroup), With<SkillGroup>>,
+    enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
 ) {
     debug!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
+    // TODO: fetch skill ent from enemy ai algorithm
     for (enemy_skill_ent, _) in enemy_skill_q
         .iter()
         .filter(|(_, grp)| **grp == SkillGroup::Enemy)
@@ -74,6 +76,7 @@ fn ev_enemy_turn_start(
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(enemy_skill_ent),
             target: player.single(),
+            caster: enemies.iter().next().unwrap()
         });
     }
 }
@@ -99,6 +102,7 @@ fn ev_watch_castskill(
         ev_skilltoeval.send(EvalSkillEvent {
             skill: ev.skill_ent.0,
             target: ev.target,
+            caster: ev.caster
         });
     }
 }
@@ -106,6 +110,7 @@ fn ev_watch_castskill(
 pub struct EvalSkillEvent {
     skill: Entity,
     target: Entity,
+    caster: Entity
 }
 fn ev_player_turn_start() {
     debug!("WhoseTurn::Player");
@@ -130,10 +135,13 @@ fn evread_endturn(
             NextInTurn::Player => {
                 commands.insert_resource(NextState(NextInTurn::Enemy));
                 commands.insert_resource(NextState(WhoseTurn::Player));
+                commands.insert_resource(NextState(SkillWheelStatus::Open));
             }
             NextInTurn::Enemy => {
                 commands.insert_resource(NextState(NextInTurn::Player));
                 commands.insert_resource(NextState(WhoseTurn::Enemy));
+                commands.insert_resource(NextState(SkillWheelStatus::Closed));
+                commands.insert_resource(NextState(TargetPromptStatus::Closed));
             }
         }
     }

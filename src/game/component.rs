@@ -36,6 +36,7 @@ pub enum Target {
     EnemyAOE,
     Any,
     AnyButSelf,
+    NoneButSelf
 }
 /// CP
 /// whether a skill can only be cast by frienlies or enemies, or both
@@ -104,11 +105,23 @@ pub struct TargetEnt(pub Entity);
 // UI ===============
 #[derive(Component)]
 pub struct SkillIcon;
+/// State indicating whether the skill wheel should be visible
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SkillWheelStatus {
+    Open,
+    Closed,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TargetPromptStatus {
+    Open,
+    Closed,
+}
 
 /// Event { SkillEnt }
 pub struct CastSkillEvent {
     pub skill_ent: SkillEnt,
     pub target: Entity,
+    pub caster: Entity
 }
 
 /// State indicating whether it's the character's turn yet and can act

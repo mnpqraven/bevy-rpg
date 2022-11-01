@@ -1,7 +1,37 @@
 [
-    { "label_name": "Basic Strike", "skill_group": "Universal", "target": "Enemy", "damage": 7, "learned": true },
-    { "label_name": "Basic block", "skill_group": "Universal", "target": "Enemy", "block": 5, "learned": true },
-    { "label_name": "Basic heal", "skill_group": "Universal", "target": "Enemy", "heal": 5, "learned": true },
-    { "label_name": "Bash", "skill_group": "Ally", "target": "Enemy", "mana": 25, "damage": 12, "learned": true },
-    { "label_name": "Bite", "skill_group": "Ally", "target": "Enemy", "damage": 13 }
+    {
+        "label_name": "Basic Strike",
+        "skill_group": "Universal",
+        "target": "Enemy",
+        "damage": 7,
+        "learned": true
+    },
+    {
+        "label_name": "Basic block",
+        "skill_group": "Universal",
+        "target": "Player",
+        "block": 5,
+        "learned": true
+    },
+    {
+        "label_name": "Basic heal",
+        "skill_group": "Universal",
+        "target": "Ally",
+        "heal": 5,
+        "learned": true
+    },
+    {
+        "label_name": "Bash",
+        "skill_group": "Ally",
+        "target": "Enemy",
+        "mana": 25,
+        "damage": 12,
+        "learned": true
+    },
+    {
+        "label_name": "Bite",
+        "skill_group": "Enemy",
+        "target": "Ally",
+        "damage": 13
+    }
 ]

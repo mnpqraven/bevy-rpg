@@ -13,11 +13,6 @@ impl Plugin for SkillPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system_set(
             SystemSet::new()
-                // .with_system(spawn_skill_basic_attack)
-                // .with_system(spawn_skill_basic_block)
-                // .with_system(spawn_skill_basic_heal)
-                // .with_system(spawn_skill_bite)
-                // .with_system(spawn_skill_bash)
                 .with_system(test_new_load)
                 ,
         );
@@ -44,11 +39,11 @@ fn test_new_load(
         }
         if skill.block.is_some() {
             commands.entity(skill_ent)
-            .insert(Damage {value: skill.block.unwrap() });
+            .insert(Block {value: skill.block.unwrap() });
         }
         if skill.heal.is_some() {
             commands.entity(skill_ent)
-            .insert(Damage {value: skill.heal.unwrap() });
+            .insert(Heal {value: skill.heal.unwrap() });
         }
         if skill.learned.is_some() {
             commands.entity(skill_ent)

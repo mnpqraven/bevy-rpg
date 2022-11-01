@@ -9,7 +9,7 @@ use super::WhiteOut;
 /// calculates changes to an unit's stat
 /// TODO: implement for player + Target component to modularize
 pub fn eval_skill(
-    mut unit: Query<(Entity, &LabelName, &mut Health, &mut Block, Option<&Player>), Without<Skill>>,
+    mut target: Query<(Entity, &LabelName, &mut Health, &mut Block, Option<&Player>), Without<Skill>>,
     skill_q: Query<
         (Entity, Option<&Block>, Option<&Damage>, Option<&Heal>),
         (With<Skill>, Without<Player>, Without<Enemy>),
@@ -21,13 +21,13 @@ pub fn eval_skill(
 ) {
     for ev in ev_evalskill.iter() {
         let (target_ent, target_name, mut target_health, mut target_block, target_player_tag) =
-            unit.get_mut(ev.target).unwrap();
+            target.get_mut(ev.target).unwrap();
         for (skill_ent, block, damage, _heal) in skill_q.iter() {
             if skill_ent == ev.skill {
                 if block.is_some() {
                     target_block.value += block.unwrap().value;
                     debug!(
-                        "should see {} block {}",
+                        "Unit {}; Block {}",
                         target_name.name, target_block.value
                     );
                 }
@@ -38,8 +38,8 @@ pub fn eval_skill(
                     };
                     target_health.value -= bleed_through;
                     info!(
-                        "target {} now has {} hp",
-                        target_name.name, target_health.value
+                        "target {} now has {} hp {} - {}",
+                        target_name.name, target_health.value, damage.unwrap().value, target_block.value
                     );
                 }
                 if target_health.value <= 0 {
@@ -54,6 +54,8 @@ pub fn eval_skill(
                     ev_endturn.send(TurnEndEvent);
                 }
             }
+            // resets block to neutral
+            target_block.value = 0;
         }
     }
 }

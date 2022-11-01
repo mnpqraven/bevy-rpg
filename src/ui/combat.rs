@@ -1,4 +1,7 @@
-use crate::game::despawn_with;
+use crate::{
+    combat::{NextInTurn, TurnEndEvent},
+    game::despawn_with,
+};
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
@@ -7,6 +10,8 @@ use crate::game::component::*;
 use super::*;
 
 pub struct CombatUIPlugin;
+#[derive(Component)]
+struct HPBar;
 
 impl Plugin for CombatUIPlugin {
     fn build(&self, app: &mut App) {
@@ -16,6 +21,7 @@ impl Plugin for CombatUIPlugin {
             .add_event::<TargetPromptEvent>()
             .add_event::<TargetSelectEvent>()
             .insert_resource(SelectingSkill(None))
+            .insert_resource(CurrentCaster(None))
             .insert_resource(ContextHistory(None))
             .add_startup_system(draw_combat_button)
             .add_system_set(
@@ -26,7 +32,12 @@ impl Plugin for CombatUIPlugin {
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
             .add_loopless_state(SkillWheelStatus::Closed)
-            .add_enter_system(SkillWheelStatus::Open, draw_skill_icons)
+            .add_enter_system_set(SkillWheelStatus::Open,
+                                  ConditionSet::new()
+                                  .with_system(draw_skill_icons)
+                                  .with_system(draw_hp_bars)
+                                  .into()
+                                  )
             .add_system(skill_button_interact.run_in_state(GameState::InCombat))
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
@@ -42,7 +53,13 @@ impl Plugin for CombatUIPlugin {
             .add_loopless_state(TargetPromptStatus::Closed)
             .add_enter_system(TargetPromptStatus::Open, draw_prompt_window)
             // despawning draws
-            .add_exit_system(SkillWheelStatus::Open, despawn_with::<SkillIcon>)
+            .add_exit_system_set(
+                SkillWheelStatus::Open,
+                ConditionSet::new()
+                    .with_system(despawn_with::<SkillIcon>)
+                    .with_system(despawn_with::<HPBar>)
+                    .into(),
+            )
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
             .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>);
     }
@@ -158,19 +175,21 @@ fn draw_prompt_window(
     skill_q: Query<&Target, With<Skill>>,
     // apply skill from here to filter units
     selecting_skill: Res<SelectingSkill>,
+    current_caster: Res<CurrentCaster>,
 ) {
     let mut index: f32 = 0.;
     let target_type = skill_q.get(selecting_skill.0.unwrap()).unwrap();
     // filter out units not matching target type
     let filtered_units =
         units_q.iter().filter(
-            |(_, _, player_tag, ally_tag, enemy_tag)| match target_type {
+            |(unit_ent, _, player_tag, ally_tag, enemy_tag)| match target_type {
                 Target::Player => player_tag.is_some(),
                 Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
                 Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
                 Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
                 Target::Any => true,
                 Target::AnyButSelf => player_tag.is_none(),
+                Target::NoneButSelf => unit_ent == &current_caster.0.unwrap(),
             },
         );
     for (unit_ent, unit_name, _, _, _) in filtered_units {
@@ -232,13 +251,14 @@ fn evread_targetselect(
     mut ev_targetselect: EventReader<TargetSelectEvent>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     selecting_skill: Res<SelectingSkill>,
+    current_caster: Res<CurrentCaster>,
 ) {
     for target_ent in ev_targetselect.iter() {
-        debug!("should see");
         debug!("{:?}", selecting_skill);
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(selecting_skill.0.unwrap()),
             target: target_ent.0,
+            caster: current_caster.0.unwrap(),
         });
     }
 }
@@ -258,7 +278,7 @@ fn combat_button_interact(
     >,
     mut text_q: Query<&mut Text>,
     mut ev_buttonclick: EventWriter<CombatButtonEvent>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
         // NOTE: grabbing children data here
@@ -287,11 +307,6 @@ fn combat_button_interact(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SkillContextStatus {
-    Open,
-    Closed,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TargetPromptStatus {
     Open,
     Closed,
 }
@@ -334,6 +349,7 @@ fn skill_button_interact(
     >,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
     mut history: ResMut<ContextHistory>,
+    player_q: Query<Entity, With<Player>>,
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
@@ -343,6 +359,8 @@ fn skill_button_interact(
                     // same skill selected > open prompt window
                     SkillContextStatus::Open if history.0 == Some(*skill_ent) => {
                         commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
+                        commands
+                            .insert_resource(CurrentCaster(Some(player_q.get_single().unwrap())));
                         commands.insert_resource(NextState(SkillContextStatus::Closed));
                         commands.insert_resource(NextState(SkillWheelStatus::Closed));
                         commands.insert_resource(NextState(TargetPromptStatus::Open));
@@ -480,4 +498,41 @@ fn draw_skill_context(
                 .insert(ContextWindow);
         }
     }
+}
+fn draw_hp_bars(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    player_q: Query<&Health, With<Player>>,
+) {
+    commands
+        // root
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    left: Val::Px(200.),
+                    top: Val::Px(100.),
+                    ..default()
+                },
+                size: Size::new(Val::Px(50.), Val::Px(50.)),
+                border: UiRect::all(Val::Px(2.)),
+                flex_direction: FlexDirection::ColumnReverse, // top to bottom
+                ..default()
+            },
+            color: Color::NONE.into(),
+            ..default()
+        })
+        // node/text title
+        // 20% height, center div
+        .with_children(|parent| {
+            parent.spawn_bundle(TextBundle::from_section(
+                player_q.get_single().unwrap().value.to_string(),
+                TextStyle {
+                    font: asset_server.load("font.ttf"),
+                    font_size: 20.,
+                    color: Color::PINK.into(),
+                },
+            ));
+        })
+        .insert(HPBar);
 }

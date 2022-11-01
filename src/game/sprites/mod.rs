@@ -91,7 +91,7 @@ fn spawn_enemy(mut commands: Commands) {
         .insert(Health { value: 40 })
         .insert(MaxHealth { value: 40 })
         .insert(Mana { value: 100 })
-        .insert(Block::default());
+        .insert(Block { value: 4 });
     commands
         .spawn()
         .insert(Enemy)
