@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use std::fs;
 
-use crate::game::component::{Target, SkillGroup, Channel};
+use crate::game::component::{Target, SkillGroup};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SkillDataTable {

@@ -1,6 +1,7 @@
 mod ai;
 mod eval;
-use self::eval::eval_skill;
+use self::eval::eval_channeling_skill;
+use self::eval::eval_instant_skill;
 use crate::game::component::*;
 use crate::game::despawn_with;
 use bevy::prelude::*;
@@ -41,6 +42,7 @@ impl Plugin for CombatPlugin {
             .add_event::<CastSkillEvent>()
             .add_system(ev_watch_castskill)
             .add_event::<EvalSkillEvent>()
+            .add_event::<EvalChannelingSkillEvent>()
             // ----
             .add_event::<TurnEndEvent>()
             .add_system(evread_endturn)
@@ -52,7 +54,10 @@ impl Plugin for CombatPlugin {
             // ----
             .add_enter_system_set(
                 WhoseTurn::System,
-                ConditionSet::new().with_system(eval_skill).into(),
+                ConditionSet::new()
+                    .with_system(eval_instant_skill)
+                    .with_system(eval_channeling_skill)
+                    .into(),
             );
     }
 }
@@ -64,7 +69,7 @@ fn ev_player_turn_start(
     mut commands: Commands,
     mut casting_ally_q: Query<(Entity, &mut Channel, &Casting), With<Player>>,
     skill_q: Query<(Option<&Damage>, Option<&Heal>), With<Skill>>,
-    mut unit_q: Query<&mut Health>
+    mut unit_q: Query<&mut Health>,
 ) {
     info!("WhoseTurn::Player");
     // handle channel
@@ -77,22 +82,21 @@ fn ev_player_turn_start(
                 let (skill_damage, skill_heal) = skill_q.get(unit_casting.skill_ent).unwrap();
                 let mut target_hp = unit_q.get_mut(unit_casting.target_ent).unwrap();
                 if let Some(heal) = skill_heal {
-                    target_hp.value += heal.value;
+                    target_hp.0 += heal.0;
                 }
                 if let Some(damage) = skill_damage {
                     // FIXME: damage already applied during skill press
-                    debug!("{} {}", &target_hp.value, &damage.value);
-                    target_hp.value -= damage.value;
+                    debug!("{} {}", &target_hp.0, &damage.0);
+                    target_hp.0 -= damage.0;
                 }
-                debug!("{:?}", &target_hp.value);
+                debug!("{:?}", &target_hp.0);
                 // allow choosing skill
-
             }
             _ => {
                 // TODO: skips player turn if casting
                 unit_channel.0 -= 1;
                 // commands.insert_resource(NextState(WhoseTurn::System));
-             },
+            }
         }
     }
 }
@@ -124,7 +128,8 @@ fn ev_watch_castskill(
     mut commands: Commands,
     mut ev_castskill: EventReader<CastSkillEvent>,
     skill_q: Query<(Entity, &LabelName, Option<&Channel>, &Target), With<Skill>>,
-    mut ev_skilltoeval: EventWriter<EvalSkillEvent>,
+    mut ev_sk2eval: EventWriter<EvalSkillEvent>,
+    mut ev_channelingsk2eval: EventWriter<EvalChannelingSkillEvent>,
 ) {
     for ev in ev_castskill.iter() {
         for (skill_ent, skill_name, skill_channel, skill_target) in
@@ -132,20 +137,32 @@ fn ev_watch_castskill(
         {
             info!(
                 "CastSkillEvent {:?} {:?} ({:?}) => {:?}",
-                skill_ent, skill_name.name, skill_target, ev.caster
+                skill_ent, skill_name.0, skill_target, ev.caster
             );
             if let Some(skill_channel) = skill_channel {
-                commands.entity(ev.caster)
-                .insert(Channel(skill_channel.0))
-                .insert(Casting{ skill_ent, target_ent: ev.target });
+                commands
+                    .entity(ev.caster)
+                    .insert(Channel(skill_channel.0))
+                    .insert(Casting {
+                        skill_ent,
+                        target_ent: ev.target,
+                    });
+            }
+            match skill_channel {
+                Some(skill_channel) => ev_channelingsk2eval.send(EvalChannelingSkillEvent {
+                    skill: ev.skill_ent.0,
+                    channel: *skill_channel,
+                    target: ev.target,
+                    caster: ev.caster,
+                }),
+                None => ev_sk2eval.send(EvalSkillEvent {
+                    skill: ev.skill_ent.0,
+                    target: ev.target,
+                    caster: ev.caster,
+                }),
             }
         }
         commands.insert_resource(NextState(WhoseTurn::System));
-        ev_skilltoeval.send(EvalSkillEvent {
-            skill: ev.skill_ent.0,
-            target: ev.target,
-            caster: ev.caster,
-        });
         // assign channel component to unit entities
     }
 }
@@ -155,8 +172,13 @@ pub struct EvalSkillEvent {
     target: Entity,
     caster: Entity,
 }
+pub struct EvalChannelingSkillEvent {
+    skill: Entity,
+    channel: Channel, // see if we need this
+    target: Entity,
+    caster: Entity,
+}
 
-// NOTE: new mechanics
 // enters White Out when taking lethal damage
 // player is at negative health but doesn't die yet,
 // and will die if they get attacked again (opens up pre-casting heal)

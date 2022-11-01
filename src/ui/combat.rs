@@ -9,6 +9,8 @@ use super::*;
 pub struct CombatUIPlugin;
 #[derive(Component)]
 struct HPBar;
+#[derive(Component)]
+struct MPBar;
 
 impl Plugin for CombatUIPlugin {
     fn build(&self, app: &mut App) {
@@ -29,12 +31,14 @@ impl Plugin for CombatUIPlugin {
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
             .add_loopless_state(SkillWheelStatus::Closed)
-            .add_enter_system_set(SkillWheelStatus::Open,
-                                  ConditionSet::new()
-                                  .with_system(draw_skill_icons)
-                                  .with_system(draw_hp_bars)
-                                  .into()
-                                  )
+            .add_enter_system_set(
+                SkillWheelStatus::Open,
+                ConditionSet::new()
+                    .with_system(draw_skill_icons)
+                    .with_system(draw_hp_bars)
+                    .with_system(draw_mp_bars)
+                    .into(),
+            )
             .add_system(skill_button_interact.run_in_state(GameState::InCombat))
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
@@ -43,8 +47,7 @@ impl Plugin for CombatUIPlugin {
             .add_system_set(
                 SystemSet::new()
                     .with_system(prompt_window_interact.run_in_state(TargetPromptStatus::Open))
-                    .with_system(evread_targetselect)
-                    .into(),
+                    .with_system(evread_targetselect),
             )
             // TargetPrompt
             .add_loopless_state(TargetPromptStatus::Closed)
@@ -114,8 +117,7 @@ pub fn draw_skill_icons(
     asset_server: Res<AssetServer>,
     skills_q: Query<(Entity, &LabelName), (With<Skill>, With<Learned>)>,
 ) {
-    let mut index = 0;
-    for (skill_ent, name) in skills_q.iter() {
+    for (index, (skill_ent, name)) in skills_q.iter().enumerate() {
         commands
             .spawn_bundle(ButtonBundle {
                 style: Style {
@@ -137,7 +139,7 @@ pub fn draw_skill_icons(
             .insert(Skill)
             .with_children(|parent| {
                 parent.spawn_bundle(TextBundle::from_section(
-                    &name.name,
+                    &name.0,
                     TextStyle {
                         font: asset_server.load("font.ttf"),
                         font_size: 20.,
@@ -148,7 +150,6 @@ pub fn draw_skill_icons(
             // add button specific component meta
             .insert(SkillEnt(skill_ent))
             .insert(SkillIcon);
-        index += 1;
     }
 }
 
@@ -205,7 +206,7 @@ fn draw_prompt_window(
             })
             .with_children(|parent| {
                 parent.spawn_bundle(TextBundle::from_section(
-                    &unit_name.name,
+                    &unit_name.0,
                     TextStyle {
                         font: asset_server.load("font.ttf"),
                         font_size: 20.,
@@ -253,7 +254,12 @@ fn evread_targetselect(
             caster: current_caster.0.unwrap(),
             target: target_ent.0,
         });
-        info!("CastSkillEvent {:?}:\n{:?} => {:?}", selecting_skill.0.unwrap(), current_caster.0.unwrap(), target_ent.0);
+        info!(
+            "CastSkillEvent {:?}:\n{:?} => {:?}",
+            selecting_skill.0.unwrap(),
+            current_caster.0.unwrap(),
+            target_ent.0
+        );
     }
 }
 
@@ -400,7 +406,16 @@ fn evread_combat_button(
 fn draw_skill_context(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<SkillContextEvent>,
-    skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>, Option<&Heal>, Option<&Channel>), With<Skill>>,
+    skill_q: Query<
+        (
+            &LabelName,
+            Option<&Damage>,
+            Option<&Block>,
+            Option<&Heal>,
+            Option<&Channel>,
+        ),
+        With<Skill>,
+    >,
     asset_server: Res<AssetServer>,
 ) {
     // TODO: complete with info text and window size + placements
@@ -409,13 +424,13 @@ fn draw_skill_context(
             let (mut a, mut b, mut c, mut d) =
                 (String::new(), String::new(), String::new(), String::new());
             if dmg.is_some() {
-                a = format!("Deal {} points of Damage", dmg.unwrap().value)
+                a = format!("Deal {} points of Damage", dmg.unwrap().0)
             }
             if block.is_some() {
-                b = format!("Grant {} points of Block", block.unwrap().value)
+                b = format!("Grant {} points of Block", block.unwrap().0)
             }
             if heal.is_some() {
-                c = format!("Heal the target for {} points", heal.unwrap().value)
+                c = format!("Heal the target for {} points", heal.unwrap().0)
             }
             match channel {
                 Some(x) if x.0 > 1 => d = format!("Channels for {} turns", channel.unwrap().0),
@@ -460,11 +475,11 @@ fn draw_skill_context(
                         })
                         .with_children(|parent| {
                             parent.spawn_bundle(TextBundle::from_section(
-                                name.name.clone(),
+                                name.0.clone(),
                                 TextStyle {
                                     font: asset_server.load("font.ttf"),
                                     font_size: 20.,
-                                    color: Color::PINK.into(),
+                                    color: Color::PINK,
                                 },
                             ));
                         });
@@ -487,7 +502,7 @@ fn draw_skill_context(
                                 TextStyle {
                                     font: asset_server.load("font.ttf"),
                                     font_size: 20.,
-                                    color: Color::PINK.into(),
+                                    color: Color::PINK,
                                 },
                             ));
                         });
@@ -499,37 +514,103 @@ fn draw_skill_context(
 fn draw_hp_bars(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    player_q: Query<&Health, With<Player>>,
+    unit_q: Query<
+        (&Health, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        Or<(With<Player>, With<Enemy>, With<Ally>)>,
+    >,
 ) {
-    commands
-        // root
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                position: UiRect {
-                    left: Val::Px(200.),
-                    top: Val::Px(100.),
-                    ..default()
-                },
-                size: Size::new(Val::Px(50.), Val::Px(50.)),
-                border: UiRect::all(Val::Px(2.)),
-                flex_direction: FlexDirection::ColumnReverse, // top to bottom
+    // left and right
+    for (index, (unit_health, _, _, enemy_tag)) in unit_q.iter().enumerate() {
+        let pos: UiRect<Val> = match enemy_tag {
+            Some(_) => UiRect {
+                right: Val::Percent(5.),
+                top: Val::Px(100. + index as f32 * 50.),
                 ..default()
             },
-            color: Color::NONE.into(),
-            ..default()
-        })
-        // node/text title
-        // 20% height, center div
-        .with_children(|parent| {
-            parent.spawn_bundle(TextBundle::from_section(
-                player_q.get_single().unwrap().value.to_string(),
-                TextStyle {
-                    font: asset_server.load("font.ttf"),
-                    font_size: 20.,
-                    color: Color::PINK.into(),
+            None => UiRect {
+                left: Val::Percent(5.),
+                top: Val::Px(100. + index as f32 * 50.),
+                ..default()
+            },
+        };
+        commands
+            // root
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: pos,
+                    size: Size::new(Val::Px(50.), Val::Px(50.)),
+                    border: UiRect::all(Val::Px(2.)),
+                    flex_direction: FlexDirection::ColumnReverse, // top to bottom
+                    ..default()
                 },
-            ));
-        })
-        .insert(HPBar);
+                color: Color::NONE.into(),
+                ..default()
+            })
+            // node/text title
+            // 20% height, center div
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle::from_section(
+                    unit_health.0.to_string(),
+                    TextStyle {
+                        font: asset_server.load("font.ttf"),
+                        font_size: 20.,
+                        color: Color::PINK,
+                    },
+                ));
+            })
+            .insert(HPBar);
+    }
+}
+
+fn draw_mp_bars(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    unit_q: Query<
+        (&Mana, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        Or<(With<Player>, With<Enemy>, With<Ally>)>,
+    >,
+) {
+    // left and right
+    for (index, (unit_mana, _, _, enemy_tag)) in unit_q.iter().enumerate() {
+        let pos: UiRect<Val> = match enemy_tag {
+            Some(_) => UiRect {
+                right: Val::Percent(6.),
+                top: Val::Px(110. + index as f32 * 50.),
+                ..default()
+            },
+            None => UiRect {
+                left: Val::Percent(6.),
+                top: Val::Px(110. + index as f32 * 50.),
+                ..default()
+            },
+        };
+        commands
+            // root
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: pos,
+                    size: Size::new(Val::Px(50.), Val::Px(50.)),
+                    border: UiRect::all(Val::Px(2.)),
+                    flex_direction: FlexDirection::ColumnReverse, // top to bottom
+                    ..default()
+                },
+                color: Color::NONE.into(),
+                ..default()
+            })
+            // node/text title
+            // 20% height, center div
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle::from_section(
+                    unit_mana.0.to_string(),
+                    TextStyle {
+                        font: asset_server.load("font.ttf"),
+                        font_size: 20.,
+                        color: Color::BLUE,
+                    },
+                ));
+            })
+            .insert(MPBar);
+    }
 }

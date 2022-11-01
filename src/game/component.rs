@@ -20,9 +20,7 @@ pub struct Enemy;
 /// CP
 /// LabelName (Crate Name) to avoid conflict with bevy's Name struct
 #[derive(Component, Clone, Debug, Inspectable)]
-pub struct LabelName {
-    pub name: String,
-}
+pub struct LabelName(pub String);
 /// CP
 /// denotes the targetting type that the character's skill can have effect on
 #[derive(Component, Debug, Serialize, Deserialize, Clone)]
@@ -61,39 +59,26 @@ pub struct SkillEnt(pub Entity);
 // STATS ============
 /// CP
 #[derive(Component, Clone)]
-pub struct Health {
-    pub value: i32,
-}
+pub struct Health(pub i32);
 /// CP
 #[derive(Component, Clone)]
-pub struct MaxHealth {
-    pub value: i32,
-}
+pub struct MaxHealth(pub i32);
 /// CP
 #[derive(Component)]
-pub struct Mana {
-    pub value: i32,
-}
+pub struct Mana(pub i32);
 /// CP
 #[derive(Component)]
-pub struct Damage {
-    pub value: i32,
-}
+pub struct MaxMana(pub i32);
 /// CP
-#[derive(Component, Clone)]
-pub struct Block {
-    pub value: i32,
-}
-impl Default for Block {
-    fn default() -> Self {
-        Self { value: 0 }
-    }
-}
+#[derive(Component)]
+pub struct Damage(pub i32);
+/// CP
+#[derive(Component, Clone, Default)]
+pub struct Block(pub i32);
+
 /// CP
 #[derive(Component, Debug)]
-pub struct Heal {
-    pub value: i32,
-}
+pub struct Heal(pub i32);
 /// CP
 /// whether the character is moving in env state
 #[derive(Component)]
@@ -102,7 +87,7 @@ pub struct IsMoving(pub bool);
 #[derive(Component, Debug)]
 pub struct TargetEnt(pub Entity);
 
-#[derive(Component, Debug, Inspectable, Deref, DerefMut)]
+#[derive(Component, Debug, Inspectable, Clone, Copy)]
 pub struct Channel(pub u32);
 #[derive(Component)]
 pub struct Casting {

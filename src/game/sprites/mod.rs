@@ -59,11 +59,11 @@ pub fn spawn_friendlies(mut commands: Commands, ascii: Res<AsciiSheet>) {
             ..default()
         })
         .insert(Player)
-        .insert(LabelName {
-            name: "Othi".to_string(),
-        })
-        .insert(Health { value: 100 })
-        .insert(MaxHealth { value: 100 })
+        .insert(LabelName("Othi".to_string()))
+        .insert(Health(100))
+        .insert(MaxHealth(100))
+        .insert(Mana(100))
+        .insert(MaxMana(100))
         .insert(Block::default())
         .insert(IsMoving(false));
 
@@ -71,35 +71,53 @@ pub fn spawn_friendlies(mut commands: Commands, ascii: Res<AsciiSheet>) {
     commands
         .spawn()
         .insert(Ally)
-        .insert(LabelName {
-            name: "Test ally".to_string(),
-        })
-        .insert(Health { value: 80 })
-        .insert(MaxHealth { value: 80 })
-        .insert(Mana { value: 30 })
+        .insert(LabelName("Test ally".to_string()))
+        .insert(Health(80))
+        .insert(MaxHealth(80))
+        .insert(Mana(30))
         .insert(Block::default())
         .insert(IsMoving(false));
 }
 
-fn spawn_enemy(mut commands: Commands) {
+fn spawn_enemy(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
-        .spawn()
-        .insert(Enemy)
-        .insert(LabelName {
-            name: "training dummy".to_string(),
+        .spawn_bundle(SpriteBundle {
+            texture: asset_server.load("icon.png"),
+            transform: Transform {
+                translation: Vec3 {
+                    x: 200.,
+                    y: 100.,
+                    z: 0.
+                },
+                scale: Vec3::splat(0.3),
+                ..default()
+            },
+            ..default()
         })
-        .insert(Health { value: 40 })
-        .insert(MaxHealth { value: 40 })
-        .insert(Mana { value: 100 })
-        .insert(Block { value: 4 });
+        .insert(Enemy)
+        .insert(LabelName("training dummy".to_string()))
+        .insert(Health(40))
+        .insert(MaxHealth(40))
+        .insert(Mana(100))
+        .insert(Block(4));
     commands
-        .spawn()
-        .insert(Enemy)
-        .insert(LabelName {
-            name: "training dummy 2".to_string(),
+        .spawn_bundle(SpriteBundle {
+            texture: asset_server.load("icon.png"),
+            transform: Transform {
+                translation: Vec3 {
+                    x: 200.,
+                    y: -100.,
+                    z: 0.
+                },
+                scale: Vec3::splat(0.3),
+                ..default()
+            },
+            ..default()
         })
-        .insert(Health { value: 9999 })
-        .insert(MaxHealth { value: 9999 })
-        .insert(Mana { value: 100 })
-        .insert(Block { value: 2 });
+        .insert(Enemy)
+        .insert(LabelName("training dummy 2".to_string()))
+        .insert(Health(9999))
+        .insert(MaxHealth(9999))
+        .insert(Mana(100))
+        .insert(Block(2));
 }
