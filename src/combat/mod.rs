@@ -86,23 +86,23 @@ fn ev_enemy_turn_start(
 fn ev_watch_castskill(
     mut commands: Commands,
     mut ev_castskill: EventReader<CastSkillEvent>,
-    skill_q: Query<(Entity, &LabelName, &Target), With<Skill>>,
+    skill_q: Query<(Entity, &LabelName, Option<&Channel>, &Target), With<Skill>>,
     mut ev_skilltoeval: EventWriter<EvalSkillEvent>,
 ) {
     for ev in ev_castskill.iter() {
-        for (skill_ent, skill_name, skill_target) in
+        for (skill_ent, skill_name, skill_channel, skill_target) in
             skill_q.iter().filter(|ent| ent.0 == ev.skill_ent.0)
         {
             info!(
-                "CastSkillEvent {:?} {:?} {:?}",
-                skill_ent, skill_name.name, skill_target
+                "CastSkillEvent {:?} {:?} ({:?}) => {:?}",
+                skill_ent, skill_name.name, skill_target, ev.caster
             );
         }
         commands.insert_resource(NextState(WhoseTurn::System));
         ev_skilltoeval.send(EvalSkillEvent {
             skill: ev.skill_ent.0,
             target: ev.target,
-            caster: ev.caster
+            caster: ev.caster,
         });
     }
 }

@@ -90,7 +90,7 @@ impl Default for Block {
     }
 }
 /// CP
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct Heal {
     pub value: i32,
 }
@@ -101,6 +101,9 @@ pub struct IsMoving(pub bool);
 
 #[derive(Component, Debug)]
 pub struct TargetEnt(pub Entity);
+
+#[derive(Component, Debug, Inspectable, Deref, DerefMut)]
+pub struct Channel(pub u32);
 
 // UI ===============
 #[derive(Component)]
@@ -117,7 +120,7 @@ pub enum TargetPromptStatus {
     Closed,
 }
 
-/// Event { SkillEnt }
+/// Event { SkillEnt, target, caster }
 pub struct CastSkillEvent {
     pub skill_ent: SkillEnt,
     pub target: Entity,

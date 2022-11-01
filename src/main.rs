@@ -1,7 +1,7 @@
 use bevy::{log::LogSettings, prelude::*};
 
 use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
-use game::component::LabelName;
+use game::component::{LabelName, Channel};
 
 mod combat;
 mod environment;
@@ -33,6 +33,7 @@ fn main() {
         // 3rd party plugins
         .add_plugin(WorldInspectorPlugin::new())
         .register_inspectable::<LabelName>()
+        .register_inspectable::<Channel>()
         .add_system(bevy::window::close_on_esc)
         .add_startup_system(x11_scale)
         .run();

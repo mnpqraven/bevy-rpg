@@ -14,7 +14,6 @@ impl Plugin for SkillPlugin {
         app.add_startup_system_set(
             SystemSet::new()
                 .with_system(test_new_load)
-                ,
         );
     }
 }
@@ -44,6 +43,10 @@ fn test_new_load(
         if skill.heal.is_some() {
             commands.entity(skill_ent)
             .insert(Heal {value: skill.heal.unwrap() });
+        }
+        if skill.channel.is_some() {
+            commands.entity(skill_ent)
+            .insert(Channel(skill.channel.unwrap()));
         }
         if skill.learned.is_some() {
             commands.entity(skill_ent)

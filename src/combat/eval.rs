@@ -9,7 +9,10 @@ use super::WhiteOut;
 /// calculates changes to an unit's stat
 /// TODO: implement for player + Target component to modularize
 pub fn eval_skill(
-    mut target: Query<(Entity, &LabelName, &mut Health, &mut Block, Option<&Player>), Without<Skill>>,
+    mut target: Query<
+        (Entity, &LabelName, &mut Health, &mut Block, Option<&Player>),
+        Without<Skill>,
+    >,
     skill_q: Query<
         (Entity, Option<&Block>, Option<&Damage>, Option<&Heal>),
         (With<Skill>, Without<Player>, Without<Enemy>),
@@ -22,14 +25,11 @@ pub fn eval_skill(
     for ev in ev_evalskill.iter() {
         let (target_ent, target_name, mut target_health, mut target_block, target_player_tag) =
             target.get_mut(ev.target).unwrap();
-        for (skill_ent, block, damage, _heal) in skill_q.iter() {
+        for (skill_ent, block, damage, heal) in skill_q.iter() {
             if skill_ent == ev.skill {
                 if block.is_some() {
                     target_block.value += block.unwrap().value;
-                    debug!(
-                        "Unit {}; Block {}",
-                        target_name.name, target_block.value
-                    );
+                    debug!("Unit {}; Block {}", target_name.name, target_block.value);
                 }
                 if damage.is_some() {
                     let bleed_through = match damage.unwrap().value > target_block.value {
@@ -39,8 +39,21 @@ pub fn eval_skill(
                     target_health.value -= bleed_through;
                     info!(
                         "target {} now has {} hp {} - {}",
-                        target_name.name, target_health.value, damage.unwrap().value, target_block.value
+                        target_name.name,
+                        target_health.value,
+                        damage.unwrap().value,
+                        target_block.value
                     );
+                }
+                // add casting logic check
+                if heal.is_some() {
+                    info!(
+                        "target {} healing {} hp + {}",
+                        target_name.name,
+                        target_health.value,
+                        heal.unwrap().value
+                    );
+                    target_health.value += heal.unwrap().value;
                 }
                 if target_health.value <= 0 {
                     match target_player_tag {
@@ -54,8 +67,16 @@ pub fn eval_skill(
                     ev_endturn.send(TurnEndEvent);
                 }
             }
-            // resets block to neutral
-            target_block.value = 0;
         }
     }
+}
+
+/// channeling eval
+pub fn eval_channeling(
+    mut target: Query<&mut Health, Without<Skill>>,
+    skill_q: Query<
+        (Entity, &mut Channel, Option<&Heal>),
+        (With<Skill>, Without<Player>, Without<Enemy>),
+    >,
+) {
 }

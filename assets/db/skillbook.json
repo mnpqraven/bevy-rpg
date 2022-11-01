@@ -33,5 +33,14 @@
         "skill_group": "Enemy",
         "target": "Ally",
         "damage": 13
+    },
+    {
+        "label_name": "Triage",
+        "skill_group": "Ally",
+        "target": "Ally",
+        "mana": 10,
+        "heal": 15,
+        "channel": 1,
+        "learned": true
     }
 ]

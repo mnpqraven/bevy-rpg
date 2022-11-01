@@ -1,7 +1,4 @@
-use crate::{
-    combat::{NextInTurn, TurnEndEvent},
-    game::despawn_with,
-};
+use crate::game::despawn_with;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
@@ -72,8 +69,6 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 struct CombatButtonEvent;
 
-// check skill detail, skills have built in targetting
-// TODO: prompt for target selection first
 struct TargetPromptEvent;
 
 /// placeholder camera here
@@ -157,7 +152,6 @@ pub fn draw_skill_icons(
     }
 }
 
-/// TODO: selective drawing
 fn draw_prompt_window(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -254,12 +248,12 @@ fn evread_targetselect(
     current_caster: Res<CurrentCaster>,
 ) {
     for target_ent in ev_targetselect.iter() {
-        debug!("{:?}", selecting_skill);
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(selecting_skill.0.unwrap()),
-            target: target_ent.0,
             caster: current_caster.0.unwrap(),
+            target: target_ent.0,
         });
+        info!("CastSkillEvent {:?}:\n{:?} => {:?}", selecting_skill.0.unwrap(), current_caster.0.unwrap(), target_ent.0);
     }
 }
 
@@ -281,8 +275,6 @@ fn combat_button_interact(
     mut commands: Commands,
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
-        // NOTE: grabbing children data here
-        // TODO: read about get_mut() later
         let mut text_data = text_q.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Clicked => {
@@ -408,14 +400,14 @@ fn evread_combat_button(
 fn draw_skill_context(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<SkillContextEvent>,
-    skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>, Option<&Heal>), With<Skill>>,
+    skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>, Option<&Heal>, Option<&Channel>), With<Skill>>,
     asset_server: Res<AssetServer>,
 ) {
     // TODO: complete with info text and window size + placements
     for ev in ev_skillcontext.iter() {
-        if let Ok((name, dmg, block, heal)) = skill_q.get(ev.skill_ent.0) {
-            let (mut a, mut b, mut c): (String, String, String) =
-                (String::new(), String::new(), String::new());
+        if let Ok((name, dmg, block, heal, channel)) = skill_q.get(ev.skill_ent.0) {
+            let (mut a, mut b, mut c, mut d) =
+                (String::new(), String::new(), String::new(), String::new());
             if dmg.is_some() {
                 a = format!("Deal {} points of Damage", dmg.unwrap().value)
             }
@@ -425,7 +417,12 @@ fn draw_skill_context(
             if heal.is_some() {
                 c = format!("Heal the target for {} points", heal.unwrap().value)
             }
-            let skill_description = format!("{}\n{}\n{}", a, b, c);
+            match channel {
+                Some(x) if x.0 > 1 => d = format!("Channels for {} turns", channel.unwrap().0),
+                Some(_) => d = format!("Channels for {} turn", channel.unwrap().0),
+                None => {}
+            }
+            let skill_description = format!("{}\n{}\n{}\n{}", a, b, c, d);
 
             // root note < <Node/Text>(title) <Node/Text>(info)>
             // 20/80, center alignment title
