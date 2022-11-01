@@ -93,9 +93,9 @@ fn ev_player_turn_start(
                 // allow choosing skill
             }
             _ => {
-                // TODO: skips player turn if casting
+                // skips player turn when casting
+                // TODO: only allow ally
                 unit_channel.0 -= 1;
-                // commands.insert_resource(NextState(WhoseTurn::System));
             }
         }
     }

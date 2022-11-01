@@ -11,12 +11,12 @@ pub struct SkillPlugin;
 
 impl Plugin for SkillPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system_set(SystemSet::new().with_system(test_new_load));
+        app.add_startup_system_set(SystemSet::new().with_system(load_skillbook));
     }
 }
 
 // do we need to convert to SoA ?
-fn test_new_load(mut commands: Commands) {
+fn load_skillbook(mut commands: Commands) {
     let skilldata: Vec<SkillDataTable> = scan_skillbook();
     for skill in skilldata.iter() {
         let skill_ent = commands

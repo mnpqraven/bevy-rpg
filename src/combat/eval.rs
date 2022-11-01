@@ -15,12 +15,7 @@ pub fn eval_instant_skill(
         Without<Skill>,
     >,
     skill_q: Query<
-        (
-            Entity,
-            Option<&Block>,
-            Option<&Damage>,
-            Option<&Heal>,
-        ),
+        (Entity, Option<&Block>, Option<&Damage>, Option<&Heal>),
         (With<Skill>, Without<Player>, Without<Enemy>),
     >,
     mut ev_evalskill: EventReader<EvalSkillEvent>,

@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use crate::game::despawn_with;
-use bevy::prelude::*;
+use bevy::{prelude::*, render::texture::ImageSettings};
 use iyes_loopless::prelude::*;
 
 use crate::game::component::*;
@@ -61,7 +63,13 @@ impl Plugin for CombatUIPlugin {
                     .into(),
             )
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
-            .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>);
+            .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>)
+            .insert_resource(ImageSettings::default_nearest())
+            .add_startup_system(setup_animate)
+            .add_system(animate)
+            .add_fixed_timestep(Duration::from_secs(1), "test_timestep")
+            .add_fixed_timestep_system("test_timestep", 0, timestep_test)
+            ;
     }
 }
 
@@ -413,6 +421,7 @@ fn draw_skill_context(
             Option<&Block>,
             Option<&Heal>,
             Option<&Channel>,
+            &Target,
         ),
         With<Skill>,
     >,
@@ -420,24 +429,25 @@ fn draw_skill_context(
 ) {
     // TODO: complete with info text and window size + placements
     for ev in ev_skillcontext.iter() {
-        if let Ok((name, dmg, block, heal, channel)) = skill_q.get(ev.skill_ent.0) {
+        if let Ok((name, dmg, block, heal, channel, target_type)) = skill_q.get(ev.skill_ent.0) {
             let (mut a, mut b, mut c, mut d) =
                 (String::new(), String::new(), String::new(), String::new());
             if dmg.is_some() {
-                a = format!("Deal {} points of Damage", dmg.unwrap().0)
+                a = format!("Deal {} points of Damage\n", dmg.unwrap().0)
             }
             if block.is_some() {
-                b = format!("Grant {} points of Block", block.unwrap().0)
+                b = format!("Grant {} points of Block\n", block.unwrap().0)
             }
             if heal.is_some() {
-                c = format!("Heal the target for {} points", heal.unwrap().0)
+                c = format!("Heal the target for {} points\n", heal.unwrap().0)
             }
             match channel {
-                Some(x) if x.0 > 1 => d = format!("Channels for {} turns", channel.unwrap().0),
-                Some(_) => d = format!("Channels for {} turn", channel.unwrap().0),
+                Some(x) if x.0 > 1 => d = format!("Channels for {} turns\n", channel.unwrap().0),
+                Some(_) => d = format!("Channels for {} turn\n", channel.unwrap().0),
                 None => {}
             }
-            let skill_description = format!("{}\n{}\n{}\n{}", a, b, c, d);
+            let target = format!("{:?}", target_type);
+            let skill_description = format!("{}{}{}{}\n{}", a, b, c, d, target);
 
             // root note < <Node/Text>(title) <Node/Text>(info)>
             // 20/80, center alignment title
@@ -613,4 +623,48 @@ fn draw_mp_bars(
             })
             .insert(MPBar);
     }
+}
+#[derive(Component, Deref, DerefMut)]
+struct AnimationTimer(Timer);
+
+fn animate(
+    time: Res<Time>,
+    texture_atlases: Res<Assets<TextureAtlas>>,
+    mut query: Query<(
+        &mut AnimationTimer,
+        &mut TextureAtlasSprite,
+        &Handle<TextureAtlas>,
+    )>,
+) {
+    for (mut timer, mut sprite, texture_atlas_handle) in &mut query {
+        timer.tick(time.delta());
+        if timer.just_finished() {
+            let texture_atlas = texture_atlases.get(texture_atlas_handle).unwrap();
+            sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
+        }
+    }
+}
+
+fn setup_animate(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+) {
+    let texture_handle = asset_server.load("gabe-idle-run.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(24., 24.), 7, 1);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    commands
+        .spawn_bundle(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle,
+            transform: Transform::from_scale(Vec3::splat(6.)),
+            ..default()
+        })
+        .insert(AnimationTimer(Timer::from_seconds(0.1, true)));
+}
+
+fn timestep_test(
+    time: Res<Time>
+    ) {
+    debug!("inside system, should run once/sec");
+    let mut timer = Timer::from_seconds(1., false);
 }
