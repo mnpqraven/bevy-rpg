@@ -1,7 +1,5 @@
 mod ai;
 mod eval;
-use self::eval::eval_channeling_skill;
-use self::eval::eval_instant_skill;
 use crate::game::component::*;
 use crate::game::despawn_with;
 use bevy::prelude::*;
@@ -16,10 +14,10 @@ pub enum NextInTurn {
 }
 
 /// hp trigger, story event, etc
-pub struct SpecialTriggerEvent;
-pub struct GameOverEvent;
+pub struct _SpecialTriggerEvent;
+pub struct _GameOverEvent;
 
-pub struct FightClearedEvent;
+pub struct _FightClearedEvent;
 pub struct EnemyKilledEvent(Entity);
 
 pub struct TurnStartEvent;
@@ -27,6 +25,13 @@ pub struct EnemyTurnStartEvent;
 
 pub struct TurnEndEvent;
 
+/// How long the animation should be running
+/// We are using a global timer so we don't
+/// reset the timer on every system call
+struct AnimationLengthConfig {
+    // TODO: this is supposed to be updated for different animations
+    timer: Timer,
+}
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.add_loopless_state(WhoseTurn::Player)
@@ -55,16 +60,38 @@ impl Plugin for CombatPlugin {
             .add_enter_system_set(
                 WhoseTurn::System,
                 ConditionSet::new()
-                    .with_system(eval_instant_skill)
-                    .with_system(eval_channeling_skill)
+                    .with_system(eval::eval_instant_skill)
+                    .with_system(eval::eval_channeling_skill)
                     .into(),
             )
-            // .insert_resource(LengthConfig{ timer: Timer::from_seconds(1., false)})
+            .insert_resource(AnimationLengthConfig {
+                timer: Timer::from_seconds(2., false),
+            })
+            .add_system(animate_skill.run_in_state(WhoseTurn::System))
             ;
     }
 }
 
-fn ev_reward() {}
+// ----------------------------------------------------------------------------
+#[derive(Component, Deref, DerefMut)]
+struct AnimationTimer(Timer);
+// TODO: move code chunk
+// TODO: finish
+fn animate_skill(
+    time: Res<Time>,
+    mut config: ResMut<AnimationLengthConfig>,
+    mut ev_endturn: EventWriter<TurnEndEvent>,
+) {
+    config.timer.tick(time.delta());
+    if !config.timer.just_finished() {
+        // animating phase
+    } else {
+        // sending event, prep for exiting WhoseTurn::System
+        ev_endturn.send(TurnEndEvent);
+        config.timer.reset();
+    }
+}
+// ----------------------------------------------------------------------------
 
 // TODO: modularize
 fn ev_player_turn_start(
@@ -169,11 +196,21 @@ fn ev_watch_castskill(
     }
 }
 
+/// skill: Entity
+/// target: Entity
+/// caster: Entity
+#[allow(dead_code)]
 pub struct EvalSkillEvent {
     skill: Entity,
     target: Entity,
     caster: Entity,
 }
+
+/// skill: Entity
+/// channel: Channel
+/// target: Entity
+/// caster: Entity
+#[allow(dead_code)]
 pub struct EvalChannelingSkillEvent {
     skill: Entity,
     channel: Channel, // see if we need this

@@ -10,64 +10,72 @@ use super::WhiteOut;
 /// calculates changes to an unit's stat
 /// TODO: refactor, split code into chunks
 pub fn eval_instant_skill(
-    mut target: Query<
-        (Entity, &LabelName, &mut Health, &mut Block, Option<&Player>),
-        Without<Skill>,
-    >,
+    mut target: Query<(Entity, &mut Health, &mut Block, Option<&Player>), Without<Skill>>,
     skill_q: Query<
-        (Entity, Option<&Block>, Option<&Damage>, Option<&Heal>),
+        (Option<&Block>, Option<&Damage>, Option<&Heal>),
         (With<Skill>, Without<Player>, Without<Enemy>),
     >,
     mut ev_evalskill: EventReader<EvalSkillEvent>,
     mut ev_enemykilled: EventWriter<EnemyKilledEvent>,
     mut commands: Commands,
-    mut ev_endturn: EventWriter<TurnEndEvent>,
 ) {
     for ev in ev_evalskill.iter() {
-        let (target_ent, target_name, mut target_health, mut target_block, target_player_tag) =
-            target.get_mut(ev.target).unwrap();
-        for (skill_ent, block, damage, heal) in skill_q.iter() {
-            if skill_ent == ev.skill {
-                if let Some(block) = block {
-                    target_block.0 += block.0;
-                    info!("Unit {}; Block {}", target_name.0, target_block.0);
+        let (target_ent, mut target_health, mut target_block, target_player_tag) =
+            target.get_mut(ev.target).expect("can't find target entity");
+        let (skill_block, skill_damage, skill_heal) =
+            skill_q.get(ev.skill).expect("can't find skill entity");
+        let (target_health, target_block) = (&mut *target_health, &mut *target_block);
+        // ------------
+        // Eval
+        eval_block(skill_block, target_block);
+        eval_heal(skill_heal, target_health);
+        eval_damage(skill_damage, target_health, target_block);
+        // ------------
+        // TODO: Post-eval
+        // NOTE: possible conflict with TurnEndEvent in animate_skill
+        if target_health.0 <= 0 {
+            match target_player_tag {
+                Some(_) => {
+                    // EnterWhiteOutEvent
+                    commands.entity(target_ent).insert(WhiteOut);
                 }
-                if let Some(damage) = damage {
-                    let bleed_through = match damage.0 > target_block.0 {
-                        true => damage.0 - target_block.0,
-                        false => 0,
-                    };
-                    target_health.0 -= bleed_through;
-                    info!(
-                        "target {} now has {} hp {} - {}",
-                        target_name.0, target_health.0, damage.0, target_block.0
-                    );
-                }
-                // add casting logic check
-                if let Some(heal) = heal {
-                    info!(
-                        "target {} healing {} hp + {}",
-                        target_name.0, target_health.0, heal.0
-                    );
-                    target_health.0 += heal.0;
-                }
-                if target_health.0 <= 0 {
-                    match target_player_tag {
-                        Some(_) => {
-                            // EnterWhiteOutEvent
-                            commands.entity(target_ent).insert(WhiteOut);
-                        }
-                        None => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
-                    }
-                } else {
-                    ev_endturn.send(TurnEndEvent);
-                }
+                None => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
             }
         }
     }
 }
 
-/// channeling eval
+// NOTE: return type ?
+/// Updates the target's block according to the skill's block stat
+fn eval_block(skill_block: Option<&Block>, mut target_block: &mut Block) {
+    if let Some(skill_block) = skill_block {
+        target_block.0 += skill_block.0;
+        info!("eval: +-{} block", skill_block.0);
+    }
+}
+/// Updates the target's health and block according to the skill's damage stat
+fn eval_damage(
+    skill_damage: Option<&Damage>,
+    target_health: &mut Health,
+    target_block: &mut Block,
+) {
+    if let Some(skill_damage) = skill_damage {
+        match target_block.0 <= skill_damage.0 {
+            true => {
+                target_health.0 -= skill_damage.0 - target_block.0;
+                target_block.0 = 0;
+            }
+            false => target_block.0 -= skill_damage.0,
+        }
+    }
+}
+/// Updates the target's health according to the skill's healing stat
+fn eval_heal(skill_heal: Option<&Heal>, target_health: &mut Health) {
+    if let Some(skill_heal) = skill_heal {
+        target_health.0 += skill_heal.0;
+    }
+}
+/// Evaluate channel skills
 pub fn eval_channeling_skill(
     mut ev_evalskill: EventReader<EvalChannelingSkillEvent>,
     mut ev_endturn: EventWriter<TurnEndEvent>,

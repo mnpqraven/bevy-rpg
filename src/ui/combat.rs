@@ -62,11 +62,7 @@ impl Plugin for CombatUIPlugin {
             )
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
             .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>)
-            .insert_resource(ImageSettings::default_nearest())
-            .add_startup_system(setup_animate)
-            .add_system(animate)
-            .insert_resource(AnimationLengthConfig { timer: Timer::from_seconds(3., false) })
-            .add_system(timestep_test.run_in_state(SkillWheelStatus::Open));
+            .insert_resource(ImageSettings::default_nearest());
     }
 }
 
@@ -619,64 +615,5 @@ fn draw_mp_bars(
                 ));
             })
             .insert(MPBar);
-    }
-}
-#[derive(Component, Deref, DerefMut)]
-struct AnimationTimer(Timer);
-
-fn animate(
-    time: Res<Time>,
-    texture_atlases: Res<Assets<TextureAtlas>>,
-    mut query: Query<(
-        &mut AnimationTimer,
-        &mut TextureAtlasSprite,
-        &Handle<TextureAtlas>,
-    )>,
-) {
-    for (mut timer, mut sprite, texture_atlas_handle) in &mut query {
-        timer.tick(time.delta());
-        if timer.just_finished() {
-            let texture_atlas = texture_atlases.get(texture_atlas_handle).unwrap();
-            sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
-        }
-    }
-}
-
-fn setup_animate(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-) {
-    let texture_handle = asset_server.load("gabe-idle-run.png");
-    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(24., 24.), 7, 1);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
-    commands
-        .spawn_bundle(SpriteSheetBundle {
-            texture_atlas: texture_atlas_handle,
-            transform: Transform::from_scale(Vec3::splat(6.)),
-            ..default()
-        })
-        .insert(AnimationTimer(Timer::from_seconds(0.1, true)));
-}
-
-/// how long the animation should be running
-pub struct AnimationLengthConfig {
-    //global timer so we don't reset the timer on every system call
-    pub timer: Timer,
-}
-
-// blocking timer implementation pointer
-// init and store a timer globally
-// system ticking and checking timer locally
-fn timestep_test(
-    time: Res<Time>,
-    mut config: ResMut<AnimationLengthConfig>,
-) {
-    config.timer.tick(time.delta());
-    if config.timer.finished() {
-        // NOTE: result
-        // timer waits: OK
-        // then this loops (because added as system): TODO:
-        debug!("see interval");
     }
 }
