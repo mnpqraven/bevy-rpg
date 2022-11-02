@@ -1,21 +1,19 @@
-use crate::game::despawn_with;
-use bevy::prelude::*;
-use iyes_loopless::prelude::*;
-
-use crate::game::component::*;
-
 use super::*;
+use crate::ecs::component::*;
+use crate::game::despawn_with;
+use bevy::{prelude::*, render::texture::ImageSettings};
+use iyes_loopless::prelude::*;
+use style::*;
 
 pub struct CombatUIPlugin;
-
 impl Plugin for CombatUIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_camera)
-            .add_event::<CombatButtonEvent>()
+        app.add_event::<CombatButtonEvent>()
             .add_event::<SkillContextEvent>()
             .add_event::<TargetPromptEvent>()
             .add_event::<TargetSelectEvent>()
             .insert_resource(SelectingSkill(None))
+            .insert_resource(CurrentCaster(None))
             .insert_resource(ContextHistory(None))
             .add_startup_system(draw_combat_button)
             .add_system_set(
@@ -26,7 +24,14 @@ impl Plugin for CombatUIPlugin {
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
             .add_loopless_state(SkillWheelStatus::Closed)
-            .add_enter_system(SkillWheelStatus::Open, draw_skill_icons)
+            .add_enter_system_set(
+                SkillWheelStatus::Open,
+                ConditionSet::new()
+                    .with_system(draw_skill_icons)
+                    .with_system(draw_hp_bars)
+                    .with_system(draw_mp_bars)
+                    .into(),
+            )
             .add_system(skill_button_interact.run_in_state(GameState::InCombat))
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
@@ -35,36 +40,26 @@ impl Plugin for CombatUIPlugin {
             .add_system_set(
                 SystemSet::new()
                     .with_system(prompt_window_interact.run_in_state(TargetPromptStatus::Open))
-                    .with_system(evread_targetselect)
-                    .into(),
+                    .with_system(evread_targetselect),
             )
             // TargetPrompt
             .add_loopless_state(TargetPromptStatus::Closed)
             .add_enter_system(TargetPromptStatus::Open, draw_prompt_window)
             // despawning draws
-            .add_exit_system(SkillWheelStatus::Open, despawn_with::<SkillIcon>)
+            .add_exit_system_set(
+                SkillWheelStatus::Open,
+                ConditionSet::new()
+                    .with_system(despawn_with::<SkillIcon>)
+                    .with_system(despawn_with::<HPBar>)
+                    .into(),
+            )
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
-            .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>);
+            .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>)
+            .insert_resource(ImageSettings::default_nearest());
     }
 }
 
-const TEXT_COLOR: Color = Color::SILVER;
-const NORMAL_BUTTON: Color = Color::rgb(0.5, 0.25, 0.5);
-const HOVERED_BUTTON: Color = Color::rgb(0.35, 0.35, 0.35);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
-
-struct CombatButtonEvent;
-
-// check skill detail, skills have built in targetting
-// TODO: prompt for target selection first
-struct TargetPromptEvent;
-
-/// placeholder camera here
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
-}
-
-fn draw_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn draw_combat_button(mut commands: Commands, font_handle: Res<FontSheet>) {
     commands
         .spawn_bundle(ButtonBundle {
             style: Style {
@@ -88,22 +83,17 @@ fn draw_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_children(|parent| {
             parent.spawn_bundle(TextBundle::from_section(
                 "enter combat",
-                TextStyle {
-                    font: asset_server.load("font.ttf"),
-                    font_size: 20.,
-                    color: TEXT_COLOR,
-                },
+                textstyle_skill_label(&font_handle),
             ));
         });
 }
 
 pub fn draw_skill_icons(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    font_handle: Res<FontSheet>,
     skills_q: Query<(Entity, &LabelName), (With<Skill>, With<Learned>)>,
 ) {
-    let mut index = 0;
-    for (skill_ent, name) in skills_q.iter() {
+    for (index, (skill_ent, name)) in skills_q.iter().enumerate() {
         commands
             .spawn_bundle(ButtonBundle {
                 style: Style {
@@ -122,28 +112,21 @@ pub fn draw_skill_icons(
                 color: NORMAL_BUTTON.into(),
                 ..default()
             })
-            .insert(Skill)
             .with_children(|parent| {
                 parent.spawn_bundle(TextBundle::from_section(
-                    &name.name,
-                    TextStyle {
-                        font: asset_server.load("font.ttf"),
-                        font_size: 20.,
-                        color: TEXT_COLOR,
-                    },
+                    &name.0,
+                    textstyle_skill_label(&font_handle),
                 ));
             })
             // add button specific component meta
+            .insert(Skill)
             .insert(SkillEnt(skill_ent))
             .insert(SkillIcon);
-        index += 1;
     }
 }
 
-/// TODO: selective drawing
 fn draw_prompt_window(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     units_q: Query<
         (
             Entity,
@@ -158,22 +141,24 @@ fn draw_prompt_window(
     skill_q: Query<&Target, With<Skill>>,
     // apply skill from here to filter units
     selecting_skill: Res<SelectingSkill>,
+    current_caster: Res<CurrentCaster>,
+    font_handle: Res<FontSheet>,
 ) {
     let mut index: f32 = 0.;
     let target_type = skill_q.get(selecting_skill.0.unwrap()).unwrap();
-    // filter out units not matching target type
-    let filtered_units =
-        units_q.iter().filter(
-            |(_, _, player_tag, ally_tag, enemy_tag)| match target_type {
-                Target::Player => player_tag.is_some(),
-                Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
-                Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
-                Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
-                Target::Any => true,
-                Target::AnyButSelf => player_tag.is_none(),
-            },
-        );
-    for (unit_ent, unit_name, _, _, _) in filtered_units {
+    // TODO: smarter filter, refactor for reuse
+    let filtered_units = units_q.iter().filter(
+        |(unit_ent, .., player_tag, ally_tag, enemy_tag)| match target_type {
+            Target::Player => player_tag.is_some(),
+            Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
+            Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
+            Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
+            Target::Any => true,
+            Target::AnyButSelf => player_tag.is_none(),
+            Target::NoneButSelf => unit_ent == &current_caster.0.unwrap(),
+        },
+    );
+    for (unit_ent, unit_name, ..) in filtered_units {
         commands
             .spawn_bundle(ButtonBundle {
                 style: Style {
@@ -192,12 +177,8 @@ fn draw_prompt_window(
             })
             .with_children(|parent| {
                 parent.spawn_bundle(TextBundle::from_section(
-                    &unit_name.name,
-                    TextStyle {
-                        font: asset_server.load("font.ttf"),
-                        font_size: 20.,
-                        color: Color::WHITE,
-                    },
+                    &unit_name.0,
+                    textstyle_skill_label(&font_handle),
                 ));
             })
             .insert(TargetEnt(unit_ent))
@@ -213,17 +194,13 @@ fn prompt_window_interact(
     mut ev_targetselect: EventWriter<TargetSelectEvent>,
 ) {
     for (interaction, mut color, target_ent) in &mut prompt_window_interaction_q {
-        match *interaction {
+        *color = match *interaction {
             Interaction::Clicked => {
                 ev_targetselect.send(TargetSelectEvent(target_ent.0));
-                *color = Color::RED.into();
+                Color::RED.into()
             }
-            Interaction::Hovered => {
-                *color = Color::ORANGE_RED.into();
-            }
-            Interaction::None => {
-                *color = Color::PINK.into();
-            }
+            Interaction::Hovered => Color::ORANGE_RED.into(),
+            Interaction::None => Color::PINK.into(),
         }
     }
 }
@@ -232,14 +209,20 @@ fn evread_targetselect(
     mut ev_targetselect: EventReader<TargetSelectEvent>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     selecting_skill: Res<SelectingSkill>,
+    current_caster: Res<CurrentCaster>,
 ) {
     for target_ent in ev_targetselect.iter() {
-        debug!("should see");
-        debug!("{:?}", selecting_skill);
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(selecting_skill.0.unwrap()),
+            caster: current_caster.0.unwrap(),
             target: target_ent.0,
         });
+        info!(
+            "CastSkillEvent {:?}:\n{:?} => {:?}",
+            selecting_skill.0.unwrap(),
+            current_caster.0.unwrap(),
+            target_ent.0
+        );
     }
 }
 
@@ -258,11 +241,9 @@ fn combat_button_interact(
     >,
     mut text_q: Query<&mut Text>,
     mut ev_buttonclick: EventWriter<CombatButtonEvent>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
-        // NOTE: grabbing children data here
-        // TODO: read about get_mut() later
         let mut text_data = text_q.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Clicked => {
@@ -287,11 +268,6 @@ fn combat_button_interact(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SkillContextStatus {
-    Open,
-    Closed,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TargetPromptStatus {
     Open,
     Closed,
 }
@@ -334,6 +310,7 @@ fn skill_button_interact(
     >,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
     mut history: ResMut<ContextHistory>,
+    player_q: Query<Entity, With<Player>>,
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
@@ -343,6 +320,8 @@ fn skill_button_interact(
                     // same skill selected > open prompt window
                     SkillContextStatus::Open if history.0 == Some(*skill_ent) => {
                         commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
+                        commands
+                            .insert_resource(CurrentCaster(Some(player_q.get_single().unwrap())));
                         commands.insert_resource(NextState(SkillContextStatus::Closed));
                         commands.insert_resource(NextState(SkillWheelStatus::Closed));
                         commands.insert_resource(NextState(TargetPromptStatus::Open));
@@ -390,24 +369,41 @@ fn evread_combat_button(
 fn draw_skill_context(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<SkillContextEvent>,
-    skill_q: Query<(&LabelName, Option<&Damage>, Option<&Block>, Option<&Heal>), With<Skill>>,
-    asset_server: Res<AssetServer>,
+    skill_q: Query<
+        (
+            &LabelName,
+            Option<&Damage>,
+            Option<&Block>,
+            Option<&Heal>,
+            Option<&Channel>,
+            &Target,
+        ),
+        With<Skill>,
+    >,
+    font_handle: Res<FontSheet>
 ) {
     // TODO: complete with info text and window size + placements
+    // TODO: this block should be processed in parser.rs and reused
     for ev in ev_skillcontext.iter() {
-        if let Ok((name, dmg, block, heal)) = skill_q.get(ev.skill_ent.0) {
-            let (mut a, mut b, mut c): (String, String, String) =
-                (String::new(), String::new(), String::new());
+        if let Ok((name, dmg, block, heal, channel, target_type)) = skill_q.get(ev.skill_ent.0) {
+            let (mut a, mut b, mut c, mut d) =
+                (String::new(), String::new(), String::new(), String::new());
             if dmg.is_some() {
-                a = format!("Deal {} points of Damage", dmg.unwrap().value)
+                a = format!("Deal {} points of Damage\n", dmg.unwrap().0)
             }
             if block.is_some() {
-                b = format!("Grant {} points of Block", block.unwrap().value)
+                b = format!("Grant {} points of Block\n", block.unwrap().0)
             }
             if heal.is_some() {
-                c = format!("Heal the target for {} points", heal.unwrap().value)
+                c = format!("Heal the target for {} points\n", heal.unwrap().0)
             }
-            let skill_description = format!("{}\n{}\n{}", a, b, c);
+            match channel {
+                Some(x) if x.0 > 1 => d = format!("Channels for {} turns\n", channel.unwrap().0),
+                Some(_) => d = format!("Channels for {} turn\n", channel.unwrap().0),
+                None => {}
+            }
+            let target = format!("{:?}", target_type);
+            let skill_description = format!("{}{}{}{}\n{}", a, b, c, d, target);
 
             // root note < <Node/Text>(title) <Node/Text>(info)>
             // 20/80, center alignment title
@@ -445,12 +441,8 @@ fn draw_skill_context(
                         })
                         .with_children(|parent| {
                             parent.spawn_bundle(TextBundle::from_section(
-                                name.name.clone(),
-                                TextStyle {
-                                    font: asset_server.load("font.ttf"),
-                                    font_size: 20.,
-                                    color: Color::PINK.into(),
-                                },
+                                name.0.clone(),
+                                textstyle_skill_label(&font_handle)
                             ));
                         });
                 })
@@ -469,11 +461,7 @@ fn draw_skill_context(
                         .with_children(|parent| {
                             parent.spawn_bundle(TextBundle::from_section(
                                 skill_description,
-                                TextStyle {
-                                    font: asset_server.load("font.ttf"),
-                                    font_size: 20.,
-                                    color: Color::PINK.into(),
-                                },
+                                textstyle_skill_label(&font_handle)
                             ));
                         });
                 })
@@ -481,3 +469,113 @@ fn draw_skill_context(
         }
     }
 }
+fn draw_hp_bars(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    unit_q: Query<
+        (&Health, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        Or<(With<Player>, With<Enemy>, With<Ally>)>,
+    >,
+) {
+    // left and right
+    for (index, (unit_health, _, _, enemy_tag)) in unit_q.iter().enumerate() {
+        let pos: UiRect<Val> = match enemy_tag {
+            Some(_) => UiRect {
+                right: Val::Percent(5.),
+                top: Val::Px(100. + index as f32 * 50.),
+                ..default()
+            },
+            None => UiRect {
+                left: Val::Percent(5.),
+                top: Val::Px(100. + index as f32 * 50.),
+                ..default()
+            },
+        };
+        commands
+            // root
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: pos,
+                    size: Size::new(Val::Px(50.), Val::Px(50.)),
+                    border: UiRect::all(Val::Px(2.)),
+                    flex_direction: FlexDirection::ColumnReverse, // top to bottom
+                    ..default()
+                },
+                color: Color::NONE.into(),
+                ..default()
+            })
+            // node/text title
+            // 20% height, center div
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle::from_section(
+                    unit_health.0.to_string(),
+                    TextStyle {
+                        font: asset_server.load("font.ttf"),
+                        font_size: 20.,
+                        color: Color::PINK,
+                    },
+                ));
+            })
+            .insert(HPBar);
+    }
+}
+
+fn draw_mp_bars(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    unit_q: Query<
+        (&Mana, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        Or<(With<Player>, With<Enemy>, With<Ally>)>,
+    >,
+) {
+    // left and right
+    for (index, (unit_mana, _, _, enemy_tag)) in unit_q.iter().enumerate() {
+        let pos: UiRect<Val> = match enemy_tag {
+            Some(_) => UiRect {
+                right: Val::Percent(6.),
+                top: Val::Px(110. + index as f32 * 50.),
+                ..default()
+            },
+            None => UiRect {
+                left: Val::Percent(6.),
+                top: Val::Px(110. + index as f32 * 50.),
+                ..default()
+            },
+        };
+        commands
+            // root
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: pos,
+                    size: Size::new(Val::Px(50.), Val::Px(50.)),
+                    border: UiRect::all(Val::Px(2.)),
+                    flex_direction: FlexDirection::ColumnReverse, // top to bottom
+                    ..default()
+                },
+                color: Color::NONE.into(),
+                ..default()
+            })
+            // node/text title
+            // 20% height, center div
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle::from_section(
+                    unit_mana.0.to_string(),
+                    TextStyle {
+                        font: asset_server.load("font.ttf"),
+                        font_size: 20.,
+                        color: Color::BLUE,
+                    },
+                ));
+            })
+            .insert(MPBar);
+    }
+}
+
+struct CombatButtonEvent;
+struct TargetPromptEvent;
+#[derive(Component)]
+struct HPBar;
+#[derive(Component)]
+struct MPBar;

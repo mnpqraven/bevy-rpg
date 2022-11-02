@@ -1,7 +1,6 @@
 mod ai;
 mod eval;
-use self::eval::eval_skill;
-use crate::game::component::*;
+use crate::ecs::component::*;
 use crate::game::despawn_with;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
@@ -15,10 +14,10 @@ pub enum NextInTurn {
 }
 
 /// hp trigger, story event, etc
-pub struct SpecialTriggerEvent;
-pub struct GameOverEvent;
+pub struct _SpecialTriggerEvent;
+pub struct _GameOverEvent;
 
-pub struct FightClearedEvent;
+pub struct _FightClearedEvent;
 pub struct EnemyKilledEvent(Entity);
 
 pub struct TurnStartEvent;
@@ -26,6 +25,13 @@ pub struct EnemyTurnStartEvent;
 
 pub struct TurnEndEvent;
 
+/// How long the animation should be running
+/// We are using a global timer so we don't
+/// reset the timer on every system call
+struct AnimationLengthConfig {
+    // TODO: this is supposed to be updated for different animations
+    timer: Timer,
+}
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.add_loopless_state(WhoseTurn::Player)
@@ -41,6 +47,7 @@ impl Plugin for CombatPlugin {
             .add_event::<CastSkillEvent>()
             .add_system(ev_watch_castskill)
             .add_event::<EvalSkillEvent>()
+            .add_event::<EvalChannelingSkillEvent>()
             // ----
             .add_event::<TurnEndEvent>()
             .add_system(evread_endturn)
@@ -52,21 +59,86 @@ impl Plugin for CombatPlugin {
             // ----
             .add_enter_system_set(
                 WhoseTurn::System,
-                ConditionSet::new().with_system(eval_skill).into(),
-            );
+                ConditionSet::new()
+                    .with_system(eval::eval_instant_skill)
+                    .with_system(eval::eval_channeling_skill)
+                    .into(),
+            )
+            .insert_resource(AnimationLengthConfig {
+                timer: Timer::from_seconds(2., false),
+            })
+            .add_system(animate_skill.run_in_state(WhoseTurn::System))
+            ;
     }
 }
 
-fn ev_reward() {}
+// ----------------------------------------------------------------------------
+#[derive(Component, Deref, DerefMut)]
+struct AnimationTimer(Timer);
+// TODO: move code chunk
+// TODO: finish
+fn animate_skill(
+    time: Res<Time>,
+    mut config: ResMut<AnimationLengthConfig>,
+    mut ev_endturn: EventWriter<TurnEndEvent>,
+) {
+    config.timer.tick(time.delta());
+    if !config.timer.just_finished() {
+        // animating phase
+    } else {
+        // sending event, prep for exiting WhoseTurn::System
+        ev_endturn.send(TurnEndEvent);
+        config.timer.reset();
+    }
+}
+// ----------------------------------------------------------------------------
 
+// TODO: modularize
+fn ev_player_turn_start(
+    mut commands: Commands,
+    mut casting_ally_q: Query<(Entity, &mut Channel, &Casting), With<Player>>,
+    skill_q: Query<(Option<&Damage>, Option<&Heal>), With<Skill>>,
+    mut unit_q: Query<&mut Health>,
+) {
+    info!("WhoseTurn::Player");
+    // handle channel
+    for (unit_ent, mut unit_channel, unit_casting) in &mut casting_ally_q {
+        match unit_channel.0 {
+            1 => {
+                commands.entity(unit_ent).remove::<Channel>();
+                commands.entity(unit_ent).remove::<Casting>();
+                debug!("{:?}", unit_casting.skill_ent);
+                let (skill_damage, skill_heal) = skill_q.get(unit_casting.skill_ent).unwrap();
+                let mut target_hp = unit_q.get_mut(unit_casting.target_ent).unwrap();
+                if let Some(heal) = skill_heal {
+                    target_hp.0 += heal.0;
+                }
+                if let Some(damage) = skill_damage {
+                    // FIXME: damage already applied during skill press
+                    debug!("{} {}", &target_hp.0, &damage.0);
+                    target_hp.0 -= damage.0;
+                }
+                debug!("{:?}", &target_hp.0);
+                // allow choosing skill
+            }
+            _ => {
+                // skips player turn when casting
+                // TODO: only allow ally
+                unit_channel.0 -= 1;
+            }
+        }
+    }
+}
 fn ev_enemy_turn_start(
     // TODO: refactor to other chunks later
     player: Query<Entity, With<Player>>,
+    enemies: Query<Entity, With<Enemy>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
-    enemy_skill_q: Query<(Entity, &SkillGroup), With<SkillGroup>>,
+    enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
 ) {
-    debug!("WhoseTurn::Enemy");
+    info!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
+    // TODO: fetch skill ent from enemy ai algorithm
     for (enemy_skill_ent, _) in enemy_skill_q
         .iter()
         .filter(|(_, grp)| **grp == SkillGroup::Enemy)
@@ -74,6 +146,7 @@ fn ev_enemy_turn_start(
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(enemy_skill_ent),
             target: player.single(),
+            caster: enemies.iter().next().unwrap(),
         });
     }
 }
@@ -83,35 +156,68 @@ fn ev_enemy_turn_start(
 fn ev_watch_castskill(
     mut commands: Commands,
     mut ev_castskill: EventReader<CastSkillEvent>,
-    skill_q: Query<(Entity, &LabelName, &Target), With<Skill>>,
-    mut ev_skilltoeval: EventWriter<EvalSkillEvent>,
+    skill_q: Query<(Entity, &LabelName, Option<&Channel>, &Target), With<Skill>>,
+    mut ev_sk2eval: EventWriter<EvalSkillEvent>,
+    mut ev_channelingsk2eval: EventWriter<EvalChannelingSkillEvent>,
 ) {
     for ev in ev_castskill.iter() {
-        for (skill_ent, skill_name, skill_target) in
+        for (skill_ent, skill_name, skill_channel, skill_target) in
             skill_q.iter().filter(|ent| ent.0 == ev.skill_ent.0)
         {
             info!(
-                "CastSkillEvent {:?} {:?} {:?}",
-                skill_ent, skill_name.name, skill_target
+                "CastSkillEvent {:?} {:?} ({:?}) => {:?}",
+                skill_ent, skill_name.0, skill_target, ev.caster
             );
+            if let Some(skill_channel) = skill_channel {
+                commands
+                    .entity(ev.caster)
+                    .insert(Channel(skill_channel.0))
+                    .insert(Casting {
+                        skill_ent,
+                        target_ent: ev.target,
+                    });
+            }
+            match skill_channel {
+                Some(skill_channel) => ev_channelingsk2eval.send(EvalChannelingSkillEvent {
+                    skill: ev.skill_ent.0,
+                    channel: *skill_channel,
+                    target: ev.target,
+                    caster: ev.caster,
+                }),
+                None => ev_sk2eval.send(EvalSkillEvent {
+                    skill: ev.skill_ent.0,
+                    target: ev.target,
+                    caster: ev.caster,
+                }),
+            }
         }
         commands.insert_resource(NextState(WhoseTurn::System));
-        ev_skilltoeval.send(EvalSkillEvent {
-            skill: ev.skill_ent.0,
-            target: ev.target,
-        });
+        // assign channel component to unit entities
     }
 }
 
+/// skill: Entity
+/// target: Entity
+/// caster: Entity
+#[allow(dead_code)]
 pub struct EvalSkillEvent {
     skill: Entity,
     target: Entity,
-}
-fn ev_player_turn_start() {
-    debug!("WhoseTurn::Player");
+    caster: Entity,
 }
 
-// NOTE: new mechanics
+/// skill: Entity
+/// channel: Channel
+/// target: Entity
+/// caster: Entity
+#[allow(dead_code)]
+pub struct EvalChannelingSkillEvent {
+    skill: Entity,
+    channel: Channel, // see if we need this
+    target: Entity,
+    caster: Entity,
+}
+
 // enters White Out when taking lethal damage
 // player is at negative health but doesn't die yet,
 // and will die if they get attacked again (opens up pre-casting heal)
@@ -124,16 +230,28 @@ fn evread_endturn(
     mut commands: Commands,
     mut ev_endturn: EventReader<TurnEndEvent>,
     next_in_turn: Res<CurrentState<NextInTurn>>,
+    // TODO: time
+    // time: Res<Time>,
 ) {
+    // time implement prototype
+    // TODO: needs to be in normal system and run every frame
+    // but only send once
+    // tick in event ?
+    // config.timer.tick(time.delta());
+    // if config.timer.finished() {}
     for _ in ev_endturn.iter() {
+        // see if blocking with timer is works here
         match next_in_turn.0 {
             NextInTurn::Player => {
                 commands.insert_resource(NextState(NextInTurn::Enemy));
                 commands.insert_resource(NextState(WhoseTurn::Player));
+                commands.insert_resource(NextState(SkillWheelStatus::Open));
             }
             NextInTurn::Enemy => {
                 commands.insert_resource(NextState(NextInTurn::Player));
                 commands.insert_resource(NextState(WhoseTurn::Enemy));
+                commands.insert_resource(NextState(SkillWheelStatus::Closed));
+                commands.insert_resource(NextState(TargetPromptStatus::Closed));
             }
         }
     }

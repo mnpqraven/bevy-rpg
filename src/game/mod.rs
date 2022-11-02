@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 
-pub mod component;
 pub mod sprites;
 pub mod bundle;
 

@@ -2,57 +2,53 @@ mod parser;
 
 use bevy::prelude::*;
 
-use crate::game::component::*;
 use crate::game::bundle::*;
+use crate::ecs::component::*;
 
-use self::parser::SkillDataTable;
 use self::parser::scan_skillbook;
+use self::parser::SkillDataTable;
 pub struct SkillPlugin;
 
 impl Plugin for SkillPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system_set(
-            SystemSet::new()
-                // .with_system(spawn_skill_basic_attack)
-                // .with_system(spawn_skill_basic_block)
-                // .with_system(spawn_skill_basic_heal)
-                // .with_system(spawn_skill_bite)
-                // .with_system(spawn_skill_bash)
-                .with_system(test_new_load)
-                ,
-        );
+        app.add_startup_system_set(SystemSet::new().with_system(load_skillbook));
     }
 }
 
 // do we need to convert to SoA ?
-fn test_new_load(
-    mut commands: Commands
-) {
+fn load_skillbook(mut commands: Commands) {
     let skilldata: Vec<SkillDataTable> = scan_skillbook();
     for skill in skilldata.iter() {
-        let skill_ent = commands.
-        spawn_bundle(SkillBundle {
-            name: LabelName { name: skill.label_name.to_owned() },
-            skill_group: skill.skill_group.clone(),
-            target: skill.target.clone(),
-            ..default()
-        })
-        .id();
+        let skill_ent = commands
+            .spawn_bundle(SkillBundle {
+                name: LabelName(skill.label_name.to_owned()),
+                skill_group: skill.skill_group.clone(),
+                target: skill.target.clone(),
+                ..default()
+            })
+            .id();
         if skill.damage.is_some() {
-            commands.entity(skill_ent)
-            .insert(Damage {value: skill.damage.unwrap() });
+            commands
+                .entity(skill_ent)
+                .insert(Damage(skill.damage.unwrap()));
         }
         if skill.block.is_some() {
-            commands.entity(skill_ent)
-            .insert(Damage {value: skill.block.unwrap() });
+            commands
+                .entity(skill_ent)
+                .insert(Block(skill.block.unwrap()));
         }
         if skill.heal.is_some() {
-            commands.entity(skill_ent)
-            .insert(Damage {value: skill.heal.unwrap() });
+            commands.entity(skill_ent).insert(Heal(skill.heal.unwrap()));
+        }
+        if skill.channel.is_some() {
+            commands
+                .entity(skill_ent)
+                .insert(Channel(skill.channel.unwrap()));
         }
         if skill.learned.is_some() {
-            commands.entity(skill_ent)
-            .insert(Learned (skill.learned.unwrap()));
+            commands
+                .entity(skill_ent)
+                .insert(Learned(skill.learned.unwrap()));
         }
     }
 }
@@ -61,11 +57,9 @@ impl Default for SkillBundle {
     fn default() -> Self {
         Self {
             skill_group: SkillGroup::Universal,
-            name: LabelName {
-                name: String::from("Unnamed skill"),
-            },
+            name: LabelName(String::from("Unnamed skill")),
             skill: Skill,
-            target: Target::Any
+            target: Target::Any,
         }
     }
 }

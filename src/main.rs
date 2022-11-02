@@ -1,13 +1,14 @@
 use bevy::{log::LogSettings, prelude::*};
 
 use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
-use game::component::LabelName;
+use ecs::component::{Channel, LabelName};
 
 mod combat;
+mod ecs;
 mod environment;
 mod game;
-mod ui;
 mod skills;
+mod ui;
 
 fn main() {
     App::new()
@@ -33,8 +34,14 @@ fn main() {
         // 3rd party plugins
         .add_plugin(WorldInspectorPlugin::new())
         .register_inspectable::<LabelName>()
+        .register_inspectable::<Channel>()
+        //
+        .add_startup_system_set(
+            SystemSet::new()
+                .with_system(x11_scale)
+                .with_system(spawn_camera),
+        )
         .add_system(bevy::window::close_on_esc)
-        .add_startup_system(x11_scale)
         .run();
 }
 /// 1x scale factor for small screen (debug)
@@ -44,4 +51,8 @@ fn x11_scale(mut windows: ResMut<Windows>) {
             window.set_scale_factor_override(Some(1.));
         }
     }
+}
+
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn_bundle(Camera2dBundle::default());
 }
