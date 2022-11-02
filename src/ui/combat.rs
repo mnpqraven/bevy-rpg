@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::game::despawn_with;
 use bevy::{prelude::*, render::texture::ImageSettings};
 use iyes_loopless::prelude::*;
@@ -67,9 +65,8 @@ impl Plugin for CombatUIPlugin {
             .insert_resource(ImageSettings::default_nearest())
             .add_startup_system(setup_animate)
             .add_system(animate)
-            .add_fixed_timestep(Duration::from_secs(1), "test_timestep")
-            .add_fixed_timestep_system("test_timestep", 0, timestep_test)
-            ;
+            .insert_resource(AnimationLengthConfig { timer: Timer::from_seconds(3., false) })
+            .add_system(timestep_test.run_in_state(SkillWheelStatus::Open));
     }
 }
 
@@ -662,9 +659,24 @@ fn setup_animate(
         .insert(AnimationTimer(Timer::from_seconds(0.1, true)));
 }
 
+/// how long the animation should be running
+pub struct AnimationLengthConfig {
+    //global timer so we don't reset the timer on every system call
+    pub timer: Timer,
+}
+
+// blocking timer implementation pointer
+// init and store a timer globally
+// system ticking and checking timer locally
 fn timestep_test(
-    time: Res<Time>
-    ) {
-    debug!("inside system, should run once/sec");
-    let mut timer = Timer::from_seconds(1., false);
+    time: Res<Time>,
+    mut config: ResMut<AnimationLengthConfig>,
+) {
+    config.timer.tick(time.delta());
+    if config.timer.finished() {
+        // NOTE: result
+        // timer waits: OK
+        // then this loops (because added as system): TODO:
+        debug!("see interval");
+    }
 }

@@ -58,7 +58,9 @@ impl Plugin for CombatPlugin {
                     .with_system(eval_instant_skill)
                     .with_system(eval_channeling_skill)
                     .into(),
-            );
+            )
+            // .insert_resource(LengthConfig{ timer: Timer::from_seconds(1., false)})
+            ;
     }
 }
 
@@ -191,8 +193,17 @@ fn evread_endturn(
     mut commands: Commands,
     mut ev_endturn: EventReader<TurnEndEvent>,
     next_in_turn: Res<CurrentState<NextInTurn>>,
+    // TODO: time
+    // time: Res<Time>,
 ) {
+    // time implement prototype
+    // TODO: needs to be in normal system and run every frame
+    // but only send once
+    // tick in event ?
+    // config.timer.tick(time.delta());
+    // if config.timer.finished() {}
     for _ in ev_endturn.iter() {
+        // see if blocking with timer is works here
         match next_in_turn.0 {
             NextInTurn::Player => {
                 commands.insert_resource(NextState(NextInTurn::Enemy));

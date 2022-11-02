@@ -8,7 +8,7 @@ use super::TurnEndEvent;
 use super::WhiteOut;
 
 /// calculates changes to an unit's stat
-/// TODO: implement for player + Target component to modularize
+/// TODO: refactor, split code into chunks
 pub fn eval_instant_skill(
     mut target: Query<
         (Entity, &LabelName, &mut Health, &mut Block, Option<&Player>),
