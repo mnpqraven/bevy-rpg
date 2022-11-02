@@ -3,7 +3,7 @@ mod parser;
 use bevy::prelude::*;
 
 use crate::game::bundle::*;
-use crate::game::component::*;
+use crate::ecs::component::*;
 
 use self::parser::scan_skillbook;
 use self::parser::SkillDataTable;

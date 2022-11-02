@@ -1,5 +1,6 @@
 //! ===========================================================================
 //! Global components that are being used by different modules
+//! TODO: frequent check + maintenance of visibility scope
 //! ===========================================================================
 
 use bevy::prelude::*;

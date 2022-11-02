@@ -1,21 +1,14 @@
+use super::*;
+use crate::ecs::component::*;
 use crate::game::despawn_with;
 use bevy::{prelude::*, render::texture::ImageSettings};
 use iyes_loopless::prelude::*;
-
-use crate::game::component::*;
-
-use super::*;
+use style::*;
 
 pub struct CombatUIPlugin;
-#[derive(Component)]
-struct HPBar;
-#[derive(Component)]
-struct MPBar;
-
 impl Plugin for CombatUIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_camera)
-            .add_event::<CombatButtonEvent>()
+        app.add_event::<CombatButtonEvent>()
             .add_event::<SkillContextEvent>()
             .add_event::<TargetPromptEvent>()
             .add_event::<TargetSelectEvent>()
@@ -66,21 +59,7 @@ impl Plugin for CombatUIPlugin {
     }
 }
 
-const TEXT_COLOR: Color = Color::SILVER;
-const NORMAL_BUTTON: Color = Color::rgb(0.5, 0.25, 0.5);
-const HOVERED_BUTTON: Color = Color::rgb(0.35, 0.35, 0.35);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
-
-struct CombatButtonEvent;
-
-struct TargetPromptEvent;
-
-/// placeholder camera here
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
-}
-
-fn draw_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn draw_combat_button(mut commands: Commands, font_handle: Res<FontSheet>) {
     commands
         .spawn_bundle(ButtonBundle {
             style: Style {
@@ -104,18 +83,14 @@ fn draw_combat_button(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_children(|parent| {
             parent.spawn_bundle(TextBundle::from_section(
                 "enter combat",
-                TextStyle {
-                    font: asset_server.load("font.ttf"),
-                    font_size: 20.,
-                    color: TEXT_COLOR,
-                },
+                textstyle_skill_label(&font_handle),
             ));
         });
 }
 
 pub fn draw_skill_icons(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    font_handle: Res<FontSheet>,
     skills_q: Query<(Entity, &LabelName), (With<Skill>, With<Learned>)>,
 ) {
     for (index, (skill_ent, name)) in skills_q.iter().enumerate() {
@@ -137,18 +112,14 @@ pub fn draw_skill_icons(
                 color: NORMAL_BUTTON.into(),
                 ..default()
             })
-            .insert(Skill)
             .with_children(|parent| {
                 parent.spawn_bundle(TextBundle::from_section(
                     &name.0,
-                    TextStyle {
-                        font: asset_server.load("font.ttf"),
-                        font_size: 20.,
-                        color: TEXT_COLOR,
-                    },
+                    textstyle_skill_label(&font_handle),
                 ));
             })
             // add button specific component meta
+            .insert(Skill)
             .insert(SkillEnt(skill_ent))
             .insert(SkillIcon);
     }
@@ -156,7 +127,6 @@ pub fn draw_skill_icons(
 
 fn draw_prompt_window(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     units_q: Query<
         (
             Entity,
@@ -172,23 +142,23 @@ fn draw_prompt_window(
     // apply skill from here to filter units
     selecting_skill: Res<SelectingSkill>,
     current_caster: Res<CurrentCaster>,
+    font_handle: Res<FontSheet>,
 ) {
     let mut index: f32 = 0.;
     let target_type = skill_q.get(selecting_skill.0.unwrap()).unwrap();
-    // filter out units not matching target type
-    let filtered_units =
-        units_q.iter().filter(
-            |(unit_ent, _, player_tag, ally_tag, enemy_tag)| match target_type {
-                Target::Player => player_tag.is_some(),
-                Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
-                Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
-                Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
-                Target::Any => true,
-                Target::AnyButSelf => player_tag.is_none(),
-                Target::NoneButSelf => unit_ent == &current_caster.0.unwrap(),
-            },
-        );
-    for (unit_ent, unit_name, _, _, _) in filtered_units {
+    // TODO: smarter filter, refactor for reuse
+    let filtered_units = units_q.iter().filter(
+        |(unit_ent, .., player_tag, ally_tag, enemy_tag)| match target_type {
+            Target::Player => player_tag.is_some(),
+            Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
+            Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
+            Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
+            Target::Any => true,
+            Target::AnyButSelf => player_tag.is_none(),
+            Target::NoneButSelf => unit_ent == &current_caster.0.unwrap(),
+        },
+    );
+    for (unit_ent, unit_name, ..) in filtered_units {
         commands
             .spawn_bundle(ButtonBundle {
                 style: Style {
@@ -208,11 +178,7 @@ fn draw_prompt_window(
             .with_children(|parent| {
                 parent.spawn_bundle(TextBundle::from_section(
                     &unit_name.0,
-                    TextStyle {
-                        font: asset_server.load("font.ttf"),
-                        font_size: 20.,
-                        color: Color::WHITE,
-                    },
+                    textstyle_skill_label(&font_handle),
                 ));
             })
             .insert(TargetEnt(unit_ent))
@@ -228,17 +194,13 @@ fn prompt_window_interact(
     mut ev_targetselect: EventWriter<TargetSelectEvent>,
 ) {
     for (interaction, mut color, target_ent) in &mut prompt_window_interaction_q {
-        match *interaction {
+        *color = match *interaction {
             Interaction::Clicked => {
                 ev_targetselect.send(TargetSelectEvent(target_ent.0));
-                *color = Color::RED.into();
+                Color::RED.into()
             }
-            Interaction::Hovered => {
-                *color = Color::ORANGE_RED.into();
-            }
-            Interaction::None => {
-                *color = Color::PINK.into();
-            }
+            Interaction::Hovered => Color::ORANGE_RED.into(),
+            Interaction::None => Color::PINK.into(),
         }
     }
 }
@@ -418,9 +380,10 @@ fn draw_skill_context(
         ),
         With<Skill>,
     >,
-    asset_server: Res<AssetServer>,
+    font_handle: Res<FontSheet>
 ) {
     // TODO: complete with info text and window size + placements
+    // TODO: this block should be processed in parser.rs and reused
     for ev in ev_skillcontext.iter() {
         if let Ok((name, dmg, block, heal, channel, target_type)) = skill_q.get(ev.skill_ent.0) {
             let (mut a, mut b, mut c, mut d) =
@@ -479,11 +442,7 @@ fn draw_skill_context(
                         .with_children(|parent| {
                             parent.spawn_bundle(TextBundle::from_section(
                                 name.0.clone(),
-                                TextStyle {
-                                    font: asset_server.load("font.ttf"),
-                                    font_size: 20.,
-                                    color: Color::PINK,
-                                },
+                                textstyle_skill_label(&font_handle)
                             ));
                         });
                 })
@@ -502,11 +461,7 @@ fn draw_skill_context(
                         .with_children(|parent| {
                             parent.spawn_bundle(TextBundle::from_section(
                                 skill_description,
-                                TextStyle {
-                                    font: asset_server.load("font.ttf"),
-                                    font_size: 20.,
-                                    color: Color::PINK,
-                                },
+                                textstyle_skill_label(&font_handle)
                             ));
                         });
                 })
@@ -617,3 +572,10 @@ fn draw_mp_bars(
             .insert(MPBar);
     }
 }
+
+struct CombatButtonEvent;
+struct TargetPromptEvent;
+#[derive(Component)]
+struct HPBar;
+#[derive(Component)]
+struct MPBar;

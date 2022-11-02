@@ -1,6 +1,6 @@
 mod ai;
 mod eval;
-use crate::game::component::*;
+use crate::ecs::component::*;
 use crate::game::despawn_with;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;

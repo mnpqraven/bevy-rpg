@@ -1,4 +1,4 @@
-use crate::game::component::*;
+use crate::ecs::component::*;
 use bevy::prelude::*;
 
 use super::EnemyKilledEvent;

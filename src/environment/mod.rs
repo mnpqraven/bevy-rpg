@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::game::component::*;
+use crate::ecs::component::*;
 
 pub struct EnvironmentPlugin;
 

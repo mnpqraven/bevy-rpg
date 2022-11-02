@@ -1,19 +1,22 @@
 mod combat;
 mod env;
-mod style;
+pub mod style;
 
 use bevy::prelude::*;
 
 use combat::CombatUIPlugin;
 use env::EnvUIPlugin;
 
-use crate::game::component::SkillEnt;
+use crate::ecs::component::SkillEnt;
+use self::style::load_fonts;
 
 pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(CombatUIPlugin).add_plugin(EnvUIPlugin);
+        app.add_plugin(CombatUIPlugin)
+            .add_plugin(EnvUIPlugin)
+            .add_startup_system_to_stage(StartupStage::PreStartup, load_fonts);
     }
 }
 
@@ -33,3 +36,6 @@ struct CurrentCaster(Option<Entity>);
 /// Event { Entity }: entity id of the target (by skill/user)
 struct TargetSelectEvent(Entity);
 
+/// Resource (Handle<Font>)
+#[derive(Clone)]
+pub struct FontSheet(pub Handle<Font>);

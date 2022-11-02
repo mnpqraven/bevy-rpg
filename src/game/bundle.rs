@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::game::component::*;
+use crate::ecs::component::*;
 
 /// only required fields for a skill, you must manually add other optional fields
 #[derive(Bundle)]

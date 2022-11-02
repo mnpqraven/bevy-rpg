@@ -1,4 +1,4 @@
-use crate::game::component::*;
+use crate::ecs::component::*;
 use bevy::prelude::*;
 
 pub struct SpritePlugin;
@@ -25,10 +25,6 @@ fn _load_single_ascii(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(Player)
         .insert(IsMoving(false));
 }
-/// Resource
-/// contains ascii sheets in assets folder,
-/// can be accessed with `texture_atlas` in `SpriteSheetBundle`
-pub struct AsciiSheet(Handle<TextureAtlas>);
 /// load the ascii sheets, this must be done in the system startup @`PreStartup` stage
 pub fn load_ascii(
     mut commands: Commands,
@@ -121,3 +117,8 @@ fn spawn_enemy(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(Mana(100))
         .insert(Block(2));
 }
+
+/// Resource
+/// contains ascii sheets in assets folder,
+/// can be accessed with `texture_atlas` in `SpriteSheetBundle`
+pub struct AsciiSheet(Handle<TextureAtlas>);
