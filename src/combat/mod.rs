@@ -251,7 +251,6 @@ fn evread_endturn(
                 commands.insert_resource(NextState(NextInTurn::Player));
                 commands.insert_resource(NextState(WhoseTurn::Enemy));
                 commands.insert_resource(NextState(SkillWheelStatus::Closed));
-                commands.insert_resource(NextState(TargetPromptStatus::Closed));
             }
         }
     }

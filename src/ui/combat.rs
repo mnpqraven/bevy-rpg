@@ -192,11 +192,13 @@ fn prompt_window_interact(
         (Changed<Interaction>, With<PromptWindow>),
     >,
     mut ev_targetselect: EventWriter<TargetSelectEvent>,
+    mut commands: Commands
 ) {
     for (interaction, mut color, target_ent) in &mut prompt_window_interaction_q {
         *color = match *interaction {
             Interaction::Clicked => {
                 ev_targetselect.send(TargetSelectEvent(target_ent.0));
+                commands.insert_resource(NextState(TargetPromptStatus::Closed));
                 Color::RED.into()
             }
             Interaction::Hovered => Color::ORANGE_RED.into(),
