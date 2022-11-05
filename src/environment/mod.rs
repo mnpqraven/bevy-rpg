@@ -9,7 +9,7 @@ impl Plugin for EnvironmentPlugin {
     }
 }
 
-/// transform sprite based on position in the last frame
+/// Transform sprite based on position in the last frame
 fn logic_input_movement(
     time: Res<Time>,
     mut sprite_pos: Query<(&mut IsMoving, &mut Transform), With<Player>>,
@@ -17,21 +17,25 @@ fn logic_input_movement(
 ) {
     for (mut is_moving, mut transform) in &mut sprite_pos {
         // let mut dir: Direction = Direction::Down; // facing the screen
-        let dir: Direction = match input.get_pressed().next() {
+        let _dir: Direction = match input.get_pressed().next() {
             Some(KeyCode::W) => {
                 is_moving.0 = true;
+                transform.translation.y += 150. * time.delta_seconds();
                 Direction::Up
             }
             Some(KeyCode::R) => {
                 is_moving.0 = true;
+                transform.translation.y -= 150. * time.delta_seconds();
                 Direction::Down
             }
             Some(KeyCode::A) => {
                 is_moving.0 = true;
+                transform.translation.x -= 150. * time.delta_seconds();
                 Direction::Left
             }
             Some(KeyCode::S) => {
                 is_moving.0 = true;
+                transform.translation.x += 150. * time.delta_seconds();
                 Direction::Right
             }
             _ => {
@@ -39,14 +43,6 @@ fn logic_input_movement(
                 Direction::Down
             } // stops moving
         };
-        if is_moving.0 {
-            match dir {
-                Direction::Up => transform.translation.y += 150. * time.delta_seconds(),
-                Direction::Down => transform.translation.y -= 150. * time.delta_seconds(),
-                Direction::Left => transform.translation.x -= 150. * time.delta_seconds(),
-                Direction::Right => transform.translation.x += 150. * time.delta_seconds(),
-            }
-        }
     }
 }
 

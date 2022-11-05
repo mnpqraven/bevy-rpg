@@ -43,6 +43,7 @@ pub fn load_ascii(
     let texture_atlas_handle = texture_atlas.add(atlas);
     commands.insert_resource(AsciiSheet(texture_atlas_handle));
 }
+/// Spawn friendly units (only entities)
 pub fn spawn_friendlies(mut commands: Commands, ascii: Res<AsciiSheet>) {
     commands
         .spawn_bundle(SpriteSheetBundle {
@@ -75,6 +76,7 @@ pub fn spawn_friendlies(mut commands: Commands, ascii: Res<AsciiSheet>) {
         .insert(IsMoving(false));
 }
 
+/// Spawn enemies in combat game state (with sprites)
 fn spawn_enemy(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn_bundle(SpriteBundle {

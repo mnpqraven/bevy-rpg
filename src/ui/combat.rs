@@ -59,6 +59,7 @@ impl Plugin for CombatUIPlugin {
     }
 }
 
+/// Draws "enter combat" button (debugging)
 fn draw_combat_button(mut commands: Commands, font_handle: Res<FontSheet>) {
     commands
         .spawn_bundle(ButtonBundle {
@@ -88,6 +89,7 @@ fn draw_combat_button(mut commands: Commands, font_handle: Res<FontSheet>) {
         });
 }
 
+/// Draw skill wheel
 pub fn draw_skill_icons(
     mut commands: Commands,
     font_handle: Res<FontSheet>,
@@ -125,6 +127,7 @@ pub fn draw_skill_icons(
     }
 }
 
+/// Draws target selection window
 fn draw_prompt_window(
     mut commands: Commands,
     units_q: Query<
@@ -186,6 +189,7 @@ fn draw_prompt_window(
         index += 1.;
     }
 }
+/// Interaction logic for targetting window
 fn prompt_window_interact(
     mut prompt_window_interaction_q: Query<
         (&Interaction, &mut UiColor, &TargetEnt),
@@ -207,6 +211,7 @@ fn prompt_window_interact(
     }
 }
 
+/// Listens @a target  is selected from the prompt window
 fn evread_targetselect(
     mut ev_targetselect: EventReader<TargetSelectEvent>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
@@ -228,6 +233,7 @@ fn evread_targetselect(
     }
 }
 
+/// interaction logic for combat button (debug)
 fn combat_button_interact(
     mut interaction_q: Query<
         (&Interaction, &mut UiColor, &Children),
@@ -268,6 +274,7 @@ fn combat_button_interact(
     }
 }
 
+/// Status of the skill context window that opens up when use selects a skill
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SkillContextStatus {
     Open,
@@ -275,6 +282,7 @@ pub enum SkillContextStatus {
 }
 
 /// Event { SkillEnt }
+/// opens the skill context window with the bound skill_ent when the event is called
 struct SkillContextEvent {
     skill_ent: SkillEnt,
 }
@@ -302,7 +310,9 @@ fn mouse_input_interact(
         }
     }
 }
-/// shows info on hover, send event on click
+/// Shows skill context window on 1st click
+///
+/// Opens up prompt window on 2nd click
 fn skill_button_interact(
     context_state: Res<CurrentState<SkillContextStatus>>,
     mut commands: Commands,
@@ -357,6 +367,7 @@ fn skill_button_interact(
     }
 }
 
+/// debug
 fn evread_combat_button(
     mut commands: Commands,
     mut ev_buttonclick: EventReader<CombatButtonEvent>,
@@ -368,6 +379,7 @@ fn evread_combat_button(
     }
 }
 
+/// Draw skill context window, showing more infomation about the selected skill
 fn draw_skill_context(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<SkillContextEvent>,
@@ -471,6 +483,7 @@ fn draw_skill_context(
         }
     }
 }
+/// Draw hp bars of units in combat
 fn draw_hp_bars(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -523,6 +536,7 @@ fn draw_hp_bars(
     }
 }
 
+/// Draws mp bars of units in combat
 fn draw_mp_bars(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

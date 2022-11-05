@@ -15,7 +15,7 @@ impl Plugin for SkillPlugin {
     }
 }
 
-// do we need to convert to SoA ?
+/// Read data from a Vec<SkillDataTable> resource and then spawn skills
 fn load_skillbook(mut commands: Commands) {
     let skilldata: Vec<SkillDataTable> = scan_skillbook();
     for skill in skilldata.iter() {

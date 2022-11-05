@@ -45,7 +45,7 @@ impl Plugin for CombatPlugin {
             .add_system(ev_enemykilled)
             // ----
             .add_event::<CastSkillEvent>()
-            .add_system(ev_watch_castskill)
+            .add_system(evread_castskill)
             .add_event::<EvalSkillEvent>()
             .add_event::<EvalChannelingSkillEvent>()
             // ----
@@ -77,6 +77,7 @@ impl Plugin for CombatPlugin {
 struct AnimationTimer(Timer);
 // TODO: move code chunk
 // TODO: finish
+/// animate the skill animation after casting a skill
 fn animate_skill(
     time: Res<Time>,
     mut config: ResMut<AnimationLengthConfig>,
@@ -94,6 +95,7 @@ fn animate_skill(
 // ----------------------------------------------------------------------------
 
 // TODO: modularize
+/// Prepper when the player's turn starts
 fn ev_player_turn_start(
     mut commands: Commands,
     mut casting_ally_q: Query<(Entity, &mut Channel, &Casting), With<Player>>,
@@ -129,6 +131,7 @@ fn ev_player_turn_start(
         }
     }
 }
+/// Prepper when the enemy's turn starts
 fn ev_enemy_turn_start(
     // TODO: refactor to other chunks later
     player: Query<Entity, With<Player>>,
@@ -151,9 +154,10 @@ fn ev_enemy_turn_start(
     }
 }
 
-/// watch for SkillCastEvent from other modules
-/// this will handle targetting for now
-fn ev_watch_castskill(
+/// Listens to SkillCastEvent from other modules
+///
+/// This will handle targetting for now
+fn evread_castskill(
     mut commands: Commands,
     mut ev_castskill: EventReader<CastSkillEvent>,
     skill_q: Query<(Entity, &LabelName, Option<&Channel>, &Target), With<Skill>>,
@@ -196,9 +200,10 @@ fn ev_watch_castskill(
     }
 }
 
-/// skill: Entity
-/// target: Entity
-/// caster: Entity
+/// Evaluation event after a skill is cast
+/// * skill: Entity
+/// * target: Entity
+/// * caster: Entity
 #[allow(dead_code)]
 pub struct EvalSkillEvent {
     skill: Entity,
@@ -206,10 +211,11 @@ pub struct EvalSkillEvent {
     caster: Entity,
 }
 
-/// skill: Entity
-/// channel: Channel
-/// target: Entity
-/// caster: Entity
+/// Evaluation event after a channeling skill is cast
+/// * skill: Entity
+/// * channel: Channel
+/// * target: Entity
+/// * caster: Entity
 #[allow(dead_code)]
 pub struct EvalChannelingSkillEvent {
     skill: Entity,
@@ -226,12 +232,11 @@ pub struct EvalChannelingSkillEvent {
 pub struct WhiteOut;
 pub struct EnterWhiteOutEvent(Entity);
 
+/// Listens to TurnEndEvent
 fn evread_endturn(
     mut commands: Commands,
     mut ev_endturn: EventReader<TurnEndEvent>,
     next_in_turn: Res<CurrentState<NextInTurn>>,
-    // TODO: time
-    // time: Res<Time>,
 ) {
     // time implement prototype
     // TODO: needs to be in normal system and run every frame
@@ -255,7 +260,7 @@ fn evread_endturn(
         }
     }
 }
-/// event triggers when an enemy dies
+/// Listens to EnemyKilledEvent
 fn ev_enemykilled(mut ev_enemykilled: EventReader<EnemyKilledEvent>, mut commands: Commands) {
     for ev in ev_enemykilled.iter() {
         info!("{:?} slain", ev.0);

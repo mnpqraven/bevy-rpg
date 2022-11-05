@@ -12,6 +12,7 @@ impl Plugin for GamePlugin {
     }
 }
 
+/// Despawns all entities with component T
 pub fn despawn_with<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
     for ent in query.iter() {
         commands.entity(ent).despawn_recursive();

@@ -7,8 +7,7 @@ use super::EvalSkillEvent;
 use super::TurnEndEvent;
 use super::WhiteOut;
 
-/// calculates changes to an unit's stat
-/// TODO: refactor, split code into chunks
+/// Run change functions to an unit's stat
 pub fn eval_instant_skill(
     mut target: Query<(Entity, &mut Health, &mut Block, Option<&Player>), Without<Skill>>,
     skill_q: Query<

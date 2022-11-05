@@ -3,6 +3,8 @@ use std::fs;
 
 use crate::ecs::component::{Target, SkillGroup};
 
+/// Resource
+/// Skill data table, struct for importing/exporting to json table
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SkillDataTable {
     pub label_name: String,
@@ -16,7 +18,7 @@ pub struct SkillDataTable {
     pub learned: Option<bool>
 }
 
-/// scan skillbook.json in assets/db for list of default skills in the database
+/// Scan skillbook.json in assets/db for list of default skills in the database
 pub fn scan_skillbook() -> Vec<SkillDataTable>{
     let file = fs::read_to_string("./assets/db/skillbook.json").expect("file not found or read perm error ");
     let res: Vec<SkillDataTable> = serde_json::from_str(&file).expect("unable to parse");
