@@ -1,5 +1,56 @@
 {
-    "$schema":"http://json-schema.org/draft-07/schema",
-    "title": "YAML schema for skill dataset",
-    "description": ""
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "title": "Skill Dataset Schema",
+  "description": "YAML schema for skill dataset",
+  "type": "array",
+  "items": {
+    "label_name": {
+      "type": "string",
+      "description": ""
+    },
+    "skill_group": {
+      "type": "string",
+      "oneOf": [
+        { "const": "Player" },
+        { "const": "Enemy" },
+        { "const": "Universal" }
+      ],
+      "description": ""
+    },
+    "target": {
+      "type": "string",
+      "oneOf": [
+        { "const": "Player" },
+        { "const": "AnyButSelf" },
+        { "const": "NoneButSelf" },
+        { "const": "Ally" },
+        { "const": "AllyButSelf" },
+        { "const": "AllyAOE" },
+        { "const": "Enemy" },
+        { "const": "EnemyAOE" },
+        { "const": "Any" }
+      ],
+      "description": ""
+    },
+    "mana": {
+      "type": "integer"
+    },
+    "damage": {
+      "type": "integer"
+    },
+    "block": {
+      "type": "integer"
+    },
+    "heal": {
+      "type": "integer"
+    },
+    "channel": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "test arsars"
+    },
+    "learned": {
+      "type": "boolean"
+    }
+  }
 }
