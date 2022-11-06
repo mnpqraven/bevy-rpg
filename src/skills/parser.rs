@@ -19,9 +19,14 @@ pub struct SkillDataTable {
 }
 
 /// Scan skillbook.json in assets/db for list of default skills in the database
-pub fn scan_skillbook() -> Vec<SkillDataTable>{
+pub fn scan_skillbook_json() -> Vec<SkillDataTable>{
     let file = fs::read_to_string("./assets/db/skillbook.json").expect("file not found or read perm error ");
     let res: Vec<SkillDataTable> = serde_json::from_str(&file).expect("unable to parse");
+    res
+}
+pub fn scan_skillbook_yaml() -> Vec<SkillDataTable> {
+    let file = fs::read_to_string("./assets/db/skillbook.yaml").expect("file not found or read perm error ");
+    let res: Vec<SkillDataTable> = serde_yaml::from_str(&file).expect("unable to parse");
     res
 }
 
@@ -30,7 +35,12 @@ mod test {
     use super::*;
 
     #[test]
-    fn scan_skillbook_test() {
-        println!("{:?}", scan_skillbook());
+    fn jsonscan_test() {
+        println!("{:?}", scan_skillbook_json());
+    }
+
+    #[test]
+    fn yamlscan_test() {
+        println!("{:?}", scan_skillbook_yaml());
     }
 }

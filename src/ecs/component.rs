@@ -143,3 +143,11 @@ pub enum GameState {
     InCombat,
     OutOfCombat,
 }
+
+/// CP tag denoting this is a sprite to be used in combat screen
+#[derive(Component)]
+pub struct CombatSprite;
+
+/// CP tag denoting this is a sprite to be used in the env world
+#[derive(Component)]
+pub struct EnvSprite;

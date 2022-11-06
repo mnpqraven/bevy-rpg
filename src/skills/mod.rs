@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::game::bundle::*;
 use crate::ecs::component::*;
 
-use self::parser::scan_skillbook;
+use self::parser::scan_skillbook_yaml;
 use self::parser::SkillDataTable;
 pub struct SkillPlugin;
 
@@ -17,7 +17,7 @@ impl Plugin for SkillPlugin {
 
 /// Read data from a Vec<SkillDataTable> resource and then spawn skills
 fn load_skillbook(mut commands: Commands) {
-    let skilldata: Vec<SkillDataTable> = scan_skillbook();
+    let skilldata: Vec<SkillDataTable> = scan_skillbook_yaml();
     for skill in skilldata.iter() {
         let skill_ent = commands
             .spawn_bundle(SkillBundle {

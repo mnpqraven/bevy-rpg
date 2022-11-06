@@ -12,7 +12,7 @@ impl Plugin for EnvironmentPlugin {
 /// Transform sprite based on position in the last frame
 fn logic_input_movement(
     time: Res<Time>,
-    mut sprite_pos: Query<(&mut IsMoving, &mut Transform), With<Player>>,
+    mut sprite_pos: Query<(&mut IsMoving, &mut Transform), (With<Player>, With<EnvSprite>)>,
     input: Res<Input<KeyCode>>,
 ) {
     for (mut is_moving, mut transform) in &mut sprite_pos {
