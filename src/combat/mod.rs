@@ -1,5 +1,6 @@
 mod ai;
 mod eval;
+use crate::combat::eval::{eval_block, eval_damage, eval_heal};
 use crate::ecs::component::*;
 use crate::game::despawn_with;
 use bevy::prelude::*;
@@ -67,25 +68,37 @@ impl Plugin for CombatPlugin {
             .insert_resource(AnimationLengthConfig {
                 timer: Timer::from_seconds(2., false),
             })
-            .add_system(animate_skill.run_in_state(WhoseTurn::System))
-            ;
+            .add_system(animate_skill.run_in_state(WhoseTurn::System));
     }
 }
 
 // ----------------------------------------------------------------------------
-#[derive(Component, Deref, DerefMut)]
-struct AnimationTimer(Timer);
-// TODO: move code chunk
-// TODO: finish
+// TODO: move code chunk + finish
 /// animate the skill animation after casting a skill
 fn animate_skill(
     time: Res<Time>,
     mut config: ResMut<AnimationLengthConfig>,
     mut ev_endturn: EventWriter<TurnEndEvent>,
+    // sprite/texture animation
+    texture_atlases: Res<Assets<TextureAtlas>>,
+    mut texture_q: Query<(
+        &mut AnimationTimer,
+        &mut TextureAtlasSprite,
+        &Handle<TextureAtlas>,
+    )>,
 ) {
     config.timer.tick(time.delta());
     if !config.timer.just_finished() {
-        // animating phase
+        // animation phase
+        // TODO: refactor to sprite module
+        for (mut animation_timer, mut sprite, handle) in &mut texture_q {
+            animation_timer.tick(time.delta());
+            if animation_timer.just_finished() {
+                let texture_atlas = texture_atlases.get(handle).unwrap();
+                // next index in sprite sheet
+                sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
+            }
+        }
     } else {
         // sending event, prep for exiting WhoseTurn::System
         ev_endturn.send(TurnEndEvent);
@@ -99,35 +112,36 @@ fn animate_skill(
 fn ev_player_turn_start(
     mut commands: Commands,
     mut casting_ally_q: Query<(Entity, &mut Channel, &Casting), With<Player>>,
-    skill_q: Query<(Option<&Damage>, Option<&Heal>), With<Skill>>,
-    mut unit_q: Query<&mut Health>,
+    skill_q: Query<(Option<&Damage>, Option<&Heal>, Option<&Block>), With<Skill>>,
+    mut unit_q: Query<(&mut Health, &mut Block), Without<Skill>>,
+    mut ev_endturn: EventWriter<TurnEndEvent>,
 ) {
     info!("WhoseTurn::Player");
     // handle channel
     for (unit_ent, mut unit_channel, unit_casting) in &mut casting_ally_q {
-        match unit_channel.0 {
-            1 => {
-                commands.entity(unit_ent).remove::<Channel>();
-                commands.entity(unit_ent).remove::<Casting>();
-                debug!("{:?}", unit_casting.skill_ent);
-                let (skill_damage, skill_heal) = skill_q.get(unit_casting.skill_ent).unwrap();
-                let mut target_hp = unit_q.get_mut(unit_casting.target_ent).unwrap();
-                if let Some(heal) = skill_heal {
-                    target_hp.0 += heal.0;
-                }
-                if let Some(damage) = skill_damage {
-                    // FIXME: damage already applied during skill press
-                    debug!("{} {}", &target_hp.0, &damage.0);
-                    target_hp.0 -= damage.0;
-                }
-                debug!("{:?}", &target_hp.0);
-                // allow choosing skill
-            }
-            _ => {
-                // skips player turn when casting
-                // TODO: only allow ally
-                unit_channel.0 -= 1;
-            }
+        if unit_channel.0 == 1 {
+            debug!("{:?}", unit_casting.skill_ent);
+
+            let (skill_damage, skill_heal, skill_block) = skill_q
+                .get(unit_casting.skill_ent)
+                .expect("can't get skill from entity id");
+            let (mut target_health, mut target_block) = unit_q
+                .get_mut(unit_casting.target_ent)
+                .expect("can't get target from entity id");
+
+            // TODO: test
+            eval_block(skill_block, &mut target_block);
+            eval_heal(skill_heal, &mut target_health);
+            eval_damage(skill_damage, &mut target_health, &mut target_block);
+
+            commands.entity(unit_ent).remove::<Channel>();
+            commands.entity(unit_ent).remove::<Casting>();
+            // allow choosing skill
+        } else {
+            // skips player turn when casting
+            // TODO: skips to ally turn when implemented
+            ev_endturn.send(TurnEndEvent);
+            unit_channel.0 -= 1;
         }
     }
 }
@@ -180,19 +194,18 @@ fn evread_castskill(
                         skill_ent,
                         target_ent: ev.target,
                     });
-            }
-            match skill_channel {
-                Some(skill_channel) => ev_channelingsk2eval.send(EvalChannelingSkillEvent {
+                ev_channelingsk2eval.send(EvalChannelingSkillEvent {
                     skill: ev.skill_ent.0,
                     channel: *skill_channel,
                     target: ev.target,
                     caster: ev.caster,
-                }),
-                None => ev_sk2eval.send(EvalSkillEvent {
+                });
+            } else {
+                ev_sk2eval.send(EvalSkillEvent {
                     skill: ev.skill_ent.0,
                     target: ev.target,
                     caster: ev.caster,
-                }),
+                });
             }
         }
         commands.insert_resource(NextState(WhoseTurn::System));

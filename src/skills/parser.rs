@@ -1,7 +1,7 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::fs;
 
-use crate::ecs::component::{Target, SkillGroup};
+use crate::ecs::component::{SkillGroup, Target};
 
 /// Resource
 /// Skill data table, struct for importing/exporting to json table
@@ -15,12 +15,13 @@ pub struct SkillDataTable {
     pub block: Option<i32>,
     pub heal: Option<i32>,
     pub channel: Option<u32>,
-    pub learned: Option<bool>
+    pub learned: Option<bool>,
 }
 
 /// Scan skillbook.yaml in assets/db for list of default skills in the database
 pub fn scan_skillbook_yaml() -> Vec<SkillDataTable> {
-    let file = fs::read_to_string("./assets/db/skillbook.yaml").expect("file not found or read perm error ");
+    let file = fs::read_to_string("./assets/db/skillbook.yaml")
+        .expect("file not found or read perm error ");
     let res: Vec<SkillDataTable> = serde_yaml::from_str(&file).expect("unable to parse");
     res
 }

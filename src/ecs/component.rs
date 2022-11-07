@@ -151,3 +151,7 @@ pub struct CombatSprite;
 /// CP tag denoting this is a sprite to be used in the env world
 #[derive(Component)]
 pub struct EnvSprite;
+
+/// CP
+#[derive(Component, Deref, DerefMut)]
+pub struct AnimationTimer(pub Timer);

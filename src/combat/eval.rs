@@ -46,14 +46,14 @@ pub fn eval_instant_skill(
 
 // NOTE: return type ?
 /// Updates the target's block according to the skill's block stat
-fn eval_block(skill_block: Option<&Block>, mut target_block: &mut Block) {
+pub fn eval_block(skill_block: Option<&Block>, mut target_block: &mut Block) {
     if let Some(skill_block) = skill_block {
         target_block.0 += skill_block.0;
         info!("eval: +-{} block", skill_block.0);
     }
 }
 /// Updates the target's health and block according to the skill's damage stat
-fn eval_damage(
+pub fn eval_damage(
     skill_damage: Option<&Damage>,
     target_health: &mut Health,
     target_block: &mut Block,
@@ -69,7 +69,7 @@ fn eval_damage(
     }
 }
 /// Updates the target's health according to the skill's healing stat
-fn eval_heal(skill_heal: Option<&Heal>, target_health: &mut Health) {
+pub fn eval_heal(skill_heal: Option<&Heal>, target_health: &mut Health) {
     if let Some(skill_heal) = skill_heal {
         target_health.0 += skill_heal.0;
     }
