@@ -332,6 +332,8 @@ fn skill_button_interact(
                     // same skill selected > open prompt window
                     SkillContextStatus::Open if history.0 == Some(*skill_ent) => {
                         commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
+                        // NOTE: caster resource is hardcoded to only player rn
+                        // TODO: modular
                         commands
                             .insert_resource(CurrentCaster(Some(player_q.get_single().unwrap())));
                         commands.insert_resource(NextState(SkillContextStatus::Closed));

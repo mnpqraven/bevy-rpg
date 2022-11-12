@@ -31,8 +31,8 @@ struct PromptWindow;
 struct ContextHistory(Option<SkillEnt>);
 #[derive(Component, Debug)]
 struct SelectingSkill(Option<Entity>);
-#[derive(Component, Debug)]
-struct CurrentCaster(Option<Entity>);
+#[derive(Debug)]
+pub struct CurrentCaster(pub Option<Entity>);
 /// Event { Entity }: entity id of the target (by skill/user)
 struct TargetSelectEvent(Entity);
 

@@ -3,6 +3,7 @@ mod eval;
 use crate::combat::eval::{eval_block, eval_damage, eval_heal};
 use crate::ecs::component::*;
 use crate::game::despawn_with;
+use crate::ui::CurrentCaster;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
@@ -79,26 +80,32 @@ fn animate_skill(
     time: Res<Time>,
     mut config: ResMut<AnimationLengthConfig>,
     mut ev_endturn: EventWriter<TurnEndEvent>,
-    // sprite/texture animation
     texture_atlases: Res<Assets<TextureAtlas>>,
-    mut texture_q: Query<(
-        &mut AnimationTimer,
-        &mut TextureAtlasSprite,
-        &Handle<TextureAtlas>,
-    )>,
+    mut texture_q: Query<
+        (
+            &mut AnimationTimer,
+            &mut TextureAtlasSprite,
+            &Handle<TextureAtlas>,
+        ),
+        With<CombatSprite>,
+    >,
+    caster: Res<CurrentCaster>,
 ) {
     config.timer.tick(time.delta());
     if !config.timer.just_finished() {
         // animation phase
         // TODO: refactor to sprite module
-        for (mut animation_timer, mut sprite, handle) in &mut texture_q {
-            animation_timer.tick(time.delta());
-            if animation_timer.just_finished() {
-                let texture_atlas = texture_atlases.get(handle).unwrap();
-                // next index in sprite sheet
-                sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
-            }
+        let (mut animation_timer, mut sprite, handle) =
+            texture_q.get_mut(caster.0.unwrap()).unwrap();
+        animation_timer.tick(time.delta());
+        if animation_timer.just_finished() {
+            let texture_atlas = texture_atlases.get(handle).unwrap();
+            // next index in sprite sheet
+            sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
+            animation_timer.reset();
+            debug!("step {:?}", caster);
         }
+        // still looping involutarily
     } else {
         // sending event, prep for exiting WhoseTurn::System
         ev_endturn.send(TurnEndEvent);
@@ -146,12 +153,16 @@ fn ev_player_turn_start(
     }
 }
 /// Prepper when the enemy's turn starts
+/// FIXME: caster always default to the only existing enemy, will panic if there's
+/// multiple enemies.
+/// TODO: system to decide enemy ent
 fn ev_enemy_turn_start(
     // TODO: refactor to other chunks later
     player: Query<Entity, With<Player>>,
     enemies: Query<Entity, With<Enemy>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
+    mut commands: Commands
 ) {
     info!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
@@ -160,10 +171,12 @@ fn ev_enemy_turn_start(
         .iter()
         .filter(|(_, grp)| **grp == SkillGroup::Enemy)
     {
+        let caster_ent = enemies.iter().next().unwrap();
+        commands.insert_resource(CurrentCaster(Some(caster_ent)));
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(enemy_skill_ent),
             target: player.single(),
-            caster: enemies.iter().next().unwrap(),
+            caster: caster_ent
         });
     }
 }
@@ -183,8 +196,8 @@ fn evread_castskill(
             skill_q.iter().filter(|ent| ent.0 == ev.skill_ent.0)
         {
             info!(
-                "CastSkillEvent {:?} {:?} ({:?}) => {:?}",
-                skill_ent, skill_name.0, skill_target, ev.caster
+                "CastSkillEvent {:?} {:?} ({:?}) caster: {:?} => target: {:?}",
+                skill_ent, skill_name.0, skill_target, ev.caster, ev.target
             );
             if let Some(skill_channel) = skill_channel {
                 commands
@@ -258,6 +271,7 @@ fn evread_endturn(
     // config.timer.tick(time.delta());
     // if config.timer.finished() {}
     for _ in ev_endturn.iter() {
+        info!("TurnEndEvent");
         // see if blocking with timer is works here
         match next_in_turn.0 {
             NextInTurn::Player => {
