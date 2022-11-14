@@ -3,7 +3,7 @@ use crate::ecs::component::*;
 use bevy::prelude::*;
 
 #[derive(Debug, Clone)]
-struct TurnOrderList<T, U> {
+pub struct TurnOrderList<T, U> {
     //entity, speed, ..
     unit_vec: Vec<(T, U)>,
     index: usize,
@@ -13,9 +13,13 @@ impl<T, U> TurnOrderList<T, U>
 where
     U: Ord + Copy,
 {
+    /// Creates a TurnOrderList with an empty vec and index 0
+    pub fn new() -> Self {
+        Self { unit_vec: Vec::new(), index: 0 }
+    }
     /// Sorts the collection based on value from lowest to highest,
     /// then transform to circular collection
-    fn new_sorted(mut items: Vec<(T, U)>) -> Self {
+    pub fn new_sorted(mut items: Vec<(T, U)>) -> Self {
         items.sort_by_key(|k| k.1);
         Self {
             unit_vec: items,
@@ -24,16 +28,16 @@ where
     }
     /// Return the next item in the list, if the current index is at the end
     /// of the list, return the first item instead of None
-    fn next(&mut self) -> &(T, U) {
+    pub fn next(&mut self) -> &(T, U) {
         self.tick_index();
         &self.unit_vec[self.index]
     }
     /// Get current item
-    fn get_current(&mut self) -> &(T, U) {
+    pub fn get_current(&mut self) -> &(T, U) {
         &self.unit_vec[self.index]
     }
     /// Get item at specified index
-    fn get(&mut self, index: usize) -> &(T, U) {
+    pub fn get(&mut self, index: usize) -> &(T, U) {
         &self.unit_vec[index]
     }
     fn tick_index(&mut self) {
@@ -65,15 +69,12 @@ where
 }
 
 /// Query units and returns TurnOrderList
-pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>) {
-    debug!("DEBUG ===================================");
-    let mut query: Vec<(Entity, &Speed)> = Vec::new();
-    for item in unit_q.iter() {
-        query.push(item);
+pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Commands) {
+    let mut query: Vec<(Entity, Speed)> = Vec::new();
+    for (ent, speed_ptr) in unit_q.iter() {
+        query.push((ent, *speed_ptr));
     }
-    info!("{:?}", query);
-    let sorted_vec = TurnOrderList::new_sorted(query);
-    info!("{:?}", sorted_vec);
+    commands.insert_resource(TurnOrderList::new_sorted(query));
 }
 
 #[cfg(test)]
@@ -151,9 +152,6 @@ mod test {
         );
         assert_eq!(turnord.take(None), (None, 2)); // take 2, vec (2) 3 41
         assert_eq!(turnord.index, 0);
-        assert_eq!(
-            turnord.unit_vec,
-            vec![(None, 2), (None, 3), (None, 41)]
-        );
+        assert_eq!(turnord.unit_vec, vec![(None, 2), (None, 3), (None, 41)]);
     }
 }

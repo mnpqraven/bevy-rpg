@@ -87,6 +87,7 @@ pub struct Block(pub i32);
 pub struct Heal(pub i32);
 /// CP
 #[derive(Component, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy)]
 pub struct Speed(pub i32);
 /// CP
 ///

@@ -71,10 +71,46 @@ impl Plugin for CombatPlugin {
                 timer: Timer::from_seconds(2., false),
             })
             .add_system(animate_skill.run_in_state(WhoseTurn::System))
-            .add_enter_system(GameState::InCombat, process::generate_turn_order);
+            .insert_resource(process::TurnOrderList::<Entity, Speed>::new())
+            // TODO: fix hack
+            .add_exit_system_set(
+                GameState::OutOfCombat,
+                ConditionSet::new()
+                    .label("setup_spawn")
+                    .before("setup_turn_order")
+                    .with_system(spawn_combat_units)
+                    .into(),
+            )
+            .add_enter_system_set(
+                GameState::InCombat,
+                ConditionSet::new()
+                    .label("setup_turn_order")
+                    .after("setup_spawn")
+                    .with_system(process::generate_turn_order)
+                    .into(),
+            );
     }
 }
 
+// TODO: bind this with sprite
+fn spawn_combat_units(mut commands: Commands) {
+    // TODO: spawn entities with required metadata, tags
+    // can leave sprite out for now
+    info!("spawning entities.. ");
+    commands
+        .spawn()
+        .insert(LabelName("Othi dummy (speed dev)".to_string()))
+        .insert(Speed(0));
+    commands
+        .spawn()
+        .insert(LabelName("Ally dummy (speed dev)".to_string()))
+        .insert(Speed(1));
+    commands
+        .spawn()
+        .insert(LabelName("enemy dummy (speed dev)".to_string()))
+        .insert(Speed(-1));
+    info!("spawned");
+}
 // ----------------------------------------------------------------------------
 // TODO: move code chunk + finish
 /// animate the skill animation after casting a skill
