@@ -65,15 +65,13 @@ impl Plugin for CombatPlugin {
                 ConditionSet::new()
                     .with_system(eval::eval_instant_skill)
                     .with_system(eval::eval_channeling_skill)
-                    // TODO: put into correct location after testing
-                    .with_system(process::generate_turn_order)
                     .into(),
             )
             .insert_resource(AnimationLengthConfig {
                 timer: Timer::from_seconds(2., false),
             })
             .add_system(animate_skill.run_in_state(WhoseTurn::System))
-            ;
+            .add_enter_system(GameState::InCombat, process::generate_turn_order);
     }
 }
 
@@ -166,7 +164,7 @@ fn ev_enemy_turn_start(
     enemies: Query<Entity, With<Enemy>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     info!("WhoseTurn::Enemy");
     // only enemy skills rn, expand to universal later when we restructure skill data
@@ -180,7 +178,7 @@ fn ev_enemy_turn_start(
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillEnt(enemy_skill_ent),
             target: player.single(),
-            caster: caster_ent
+            caster: caster_ent,
         });
     }
 }
