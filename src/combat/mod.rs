@@ -1,5 +1,6 @@
 mod ai;
 mod eval;
+mod process;
 use crate::combat::eval::{eval_block, eval_damage, eval_heal};
 use crate::ecs::component::*;
 use crate::game::despawn_with;
@@ -64,12 +65,15 @@ impl Plugin for CombatPlugin {
                 ConditionSet::new()
                     .with_system(eval::eval_instant_skill)
                     .with_system(eval::eval_channeling_skill)
+                    // TODO: put into correct location after testing
+                    .with_system(process::generate_turn_order)
                     .into(),
             )
             .insert_resource(AnimationLengthConfig {
                 timer: Timer::from_seconds(2., false),
             })
-            .add_system(animate_skill.run_in_state(WhoseTurn::System));
+            .add_system(animate_skill.run_in_state(WhoseTurn::System))
+            ;
     }
 }
 
@@ -103,9 +107,9 @@ fn animate_skill(
             // next index in sprite sheet
             sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
             animation_timer.reset();
-            debug!("step {:?}", caster);
+            // debug!("step {:?}", caster);
         }
-        // still looping involutarily
+        // TODO: go back to first sprite index
     } else {
         // sending event, prep for exiting WhoseTurn::System
         ev_endturn.send(TurnEndEvent);

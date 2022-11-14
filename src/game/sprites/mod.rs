@@ -91,6 +91,7 @@ pub fn spawn_combat_allysp(
         .insert(MaxHealth(100))
         .insert(Mana(100))
         .insert(MaxMana(100))
+        .insert(Speed(0))
         .insert(Block::default())
         .insert(IsMoving(false))
         .insert(CombatSprite);
@@ -104,6 +105,7 @@ pub fn spawn_combat_allysp(
         .insert(MaxHealth(80))
         .insert(Mana(30))
         .insert(Block::default())
+        .insert(Speed(1))
         .insert(IsMoving(false))
         .insert(CombatSprite);
 }
@@ -157,6 +159,7 @@ fn spawn_combat_enemysp(
         .insert(MaxHealth(9999))
         .insert(Mana(100))
         .insert(Block(2))
+        .insert(Speed(-1))
         .insert(CombatSprite);
 }
 

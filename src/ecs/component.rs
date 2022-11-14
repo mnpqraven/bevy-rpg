@@ -82,10 +82,12 @@ pub struct Damage(pub i32);
 /// CP
 #[derive(Component, Clone, Default)]
 pub struct Block(pub i32);
-
 /// CP
 #[derive(Component, Debug)]
 pub struct Heal(pub i32);
+/// CP
+#[derive(Component, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Speed(pub i32);
 /// CP
 ///
 /// whether the character is moving in env state
