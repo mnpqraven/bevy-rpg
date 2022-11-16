@@ -378,6 +378,7 @@ fn evread_combat_button(
         // changing state
         info!("GameState::InCombat");
         commands.insert_resource(NextState(GameState::InCombat));
+        commands.insert_resource(NextState(WhoseTurn::Player));
     }
 }
 

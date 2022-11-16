@@ -131,6 +131,7 @@ pub struct CastSkillEvent {
 /// State indicating whether it's the character's turn yet and can act
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum WhoseTurn {
+    Nil, // debug to avoid running enter systems
     Player,
     Enemy,
     System,

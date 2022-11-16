@@ -8,12 +8,15 @@ use crate::ui::CurrentCaster;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
+use self::process::TurnOrderList;
+
 pub struct CombatPlugin;
 /// queue who's the next in turn
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NextInTurn {
     Player,
     Enemy,
+    Nil // debug to avoid running enter systems
 }
 
 /// hp trigger, story event, etc
@@ -37,8 +40,10 @@ struct AnimationLengthConfig {
 }
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_loopless_state(WhoseTurn::Player)
-            .add_loopless_state(NextInTurn::Enemy)
+        app
+            .add_loopless_state(WhoseTurn::Nil)
+            .add_loopless_state(NextInTurn::Nil)
+            .insert_resource(TurnOrderList::<Entity, Speed>::new())
             // Player turn start
             .add_event::<TurnStartEvent>()
             .add_event::<EnemyTurnStartEvent>()
@@ -55,10 +60,10 @@ impl Plugin for CombatPlugin {
             .add_event::<TurnEndEvent>()
             .add_system(evread_endturn)
             // ----
-            .add_enter_system(WhoseTurn::Player, ev_player_turn_start)
+            .add_enter_system(WhoseTurn::Player, eval_turn_start)
             .add_exit_system(WhoseTurn::Player, despawn_with::<SkillIcon>)
             // ----
-            .add_enter_system(WhoseTurn::Enemy, ev_enemy_turn_start)
+            .add_enter_system(WhoseTurn::Enemy, eval_turn_start)
             // ----
             .add_enter_system_set(
                 WhoseTurn::System,
@@ -219,6 +224,32 @@ fn ev_enemy_turn_start(
     }
 }
 
+/// Refactoring 2 eval functions from players and enemies into 1
+fn eval_turn_start(
+    player: Query<Entity, With<Player>>,
+    mut casting_ally_q: Query<(Entity, &mut Channel, &Casting), With<Player>>,
+    skill_q: Query<(Option<&Damage>, Option<&Heal>, Option<&Block>), With<Skill>>,
+    mut unit_q: Query<(&mut Health, &mut Block), Without<Skill>>,
+    mut ev_endturn: EventWriter<TurnEndEvent>,
+    //
+    enemies: Query<Entity, With<Enemy>>,
+    mut ev_castskill: EventWriter<CastSkillEvent>,
+    enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
+    mut commands: Commands,
+    //
+    turn_order: ResMut<TurnOrderList<Entity, Speed>>,
+) {
+
+    info!("TurnStart for {:?}", turn_order.get_current());
+    debug!("{:?}", turn_order);
+
+    // eval
+    // ----
+    // if channeling then eval channeling
+    // else send endturn event
+    ev_endturn.send(TurnEndEvent);
+}
+
 /// Listens to SkillCastEvent from other modules
 ///
 /// This will handle targetting for now
@@ -301,6 +332,7 @@ fn evread_endturn(
     mut commands: Commands,
     mut ev_endturn: EventReader<TurnEndEvent>,
     next_in_turn: Res<CurrentState<NextInTurn>>,
+    mut turn_order: ResMut<TurnOrderList<Entity, Speed>>
 ) {
     // time implement prototype
     // TODO: needs to be in normal system and run every frame
@@ -311,6 +343,7 @@ fn evread_endturn(
     for _ in ev_endturn.iter() {
         info!("TurnEndEvent");
         // see if blocking with timer is works here
+        // TODO: refactor + implement speed
         match next_in_turn.0 {
             NextInTurn::Player => {
                 commands.insert_resource(NextState(NextInTurn::Enemy));
@@ -321,8 +354,10 @@ fn evread_endturn(
                 commands.insert_resource(NextState(NextInTurn::Player));
                 commands.insert_resource(NextState(WhoseTurn::Enemy));
                 commands.insert_resource(NextState(SkillWheelStatus::Closed));
-            }
+            },
+            NextInTurn::Nil => {}
         }
+        turn_order.next();
     }
 }
 /// Listens to EnemyKilledEvent
