@@ -32,7 +32,7 @@ pub struct LabelName(pub String);
 #[serde(rename = "target")]
 pub enum Target {
     Player,
-    Ally,
+    AllyAndSelf,
     AllyButSelf,
     AllyAOE,
     Enemy,
@@ -47,6 +47,7 @@ pub enum Target {
 #[derive(Component, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[serde(rename = "skill_group")]
 pub enum SkillGroup {
+    Player,
     Ally,
     Enemy,
     Universal,
@@ -126,14 +127,6 @@ pub struct CastSkillEvent {
     pub skill_ent: SkillEnt,
     pub target: Entity,
     pub caster: Entity,
-}
-
-/// State indicating whether it's the character's turn yet and can act
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum WhoseTurn {
-    Player,
-    Enemy,
-    System,
 }
 
 /// State indicating whether the character is interacting with the open world or in combat

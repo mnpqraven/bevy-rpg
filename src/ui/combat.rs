@@ -1,5 +1,5 @@
 use super::*;
-use crate::ecs::component::*;
+use crate::{ecs::component::*, combat::ControlMutex};
 use crate::game::despawn_with;
 use bevy::{prelude::*, render::texture::ImageSettings};
 use iyes_loopless::prelude::*;
@@ -153,7 +153,7 @@ fn draw_prompt_window(
     let filtered_units = units_q.iter().filter(
         |(unit_ent, .., player_tag, ally_tag, enemy_tag)| match target_type {
             Target::Player => player_tag.is_some(),
-            Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
+            Target::AllyAndSelf | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
             Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
             Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
             Target::Any => true,
@@ -224,12 +224,6 @@ fn evread_targetselect(
             caster: current_caster.0.unwrap(),
             target: target_ent.0,
         });
-        info!(
-            "CastSkillEvent {:?}:\n{:?} => {:?}",
-            selecting_skill.0.unwrap(),
-            current_caster.0.unwrap(),
-            target_ent.0
-        );
     }
 }
 
@@ -250,6 +244,7 @@ fn combat_button_interact(
     mut text_q: Query<&mut Text>,
     mut ev_buttonclick: EventWriter<CombatButtonEvent>,
     mut commands: Commands,
+    current_control_mutex: Res<CurrentState<ControlMutex>>
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
         let mut text_data = text_q.get_mut(children[0]).unwrap();
@@ -268,7 +263,12 @@ fn combat_button_interact(
                 // still needs to set value for None case, otherwise the text
                 // won't change back from Clicked or Hovered
                 *color = NORMAL_BUTTON.into();
-                text_data.sections[0].value = "enter combat debug".to_string();
+                let lmao = match current_control_mutex.0 {
+                    ControlMutex::Unit => "unit".to_string(),
+                    ControlMutex::System => "system".to_string(),
+                    ControlMutex::Startup => "none".to_string()
+                };
+                text_data.sections[0].value = lmao;
             }
         }
     }
