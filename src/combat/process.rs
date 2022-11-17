@@ -3,7 +3,6 @@ use std::cmp::Reverse;
 // speed calc here
 use crate::ecs::component::*;
 use bevy::prelude::*;
-use iyes_loopless::state::NextState;
 
 #[derive(Debug, Clone)]
 pub struct TurnOrderList<T, U> {
@@ -79,7 +78,7 @@ where
 }
 
 /// Query units and returns TurnOrderList
-/// NOTE: for now setup whoseturn resource here, refactor later
+/// TODO: result
 pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Commands) {
     let mut query: Vec<(Entity, Speed)> = Vec::new();
     for (ent, speed_ptr) in unit_q.iter() {
@@ -90,10 +89,6 @@ pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Comman
     let tol = TurnOrderList::new_sorted(query);
     commands.insert_resource(tol.clone());
     debug!("generate_turn_order {:?}", tol);
-    commands.insert_resource(NextState(WhoseTurn::Player));
-    // let (whoseturn, nextinturn) = (tol.get_current(), tol.peek());
-    // debug!("{:?}", tol);
-    // debug!("current {:?} + next {:?}", whoseturn, nextinturn);
 }
 
 #[cfg(test)]

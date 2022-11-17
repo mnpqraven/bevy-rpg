@@ -17,8 +17,8 @@ impl Plugin for SpritePlugin {
             .add_enter_system_set(
                 GameState::InCombat,
                 ConditionSet::new()
-                    .with_system(spawn_combat_allysp)
-                    .with_system(spawn_combat_enemysp)
+                    // .with_system(spawn_combat_allysp)
+                    // .with_system(spawn_combat_enemysp)
                     .into(),
             )
             .add_exit_system(GameState::InCombat, despawn_with::<CombatSprite>)
@@ -111,7 +111,7 @@ pub fn spawn_combat_allysp(
 }
 
 /// Spawn enemies in combat game state (with sprites)
-fn spawn_combat_enemysp(
+pub fn spawn_combat_enemysp(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,

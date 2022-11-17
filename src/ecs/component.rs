@@ -128,15 +128,6 @@ pub struct CastSkillEvent {
     pub caster: Entity,
 }
 
-/// State indicating whether it's the character's turn yet and can act
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum WhoseTurn {
-    Nil, // debug to avoid running enter systems
-    Player,
-    Enemy,
-    System,
-}
-
 /// State indicating whether the character is interacting with the open world or in combat
 ///
 /// OutOfCombat: when character is in world, can move

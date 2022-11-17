@@ -8,6 +8,7 @@ use super::TurnEndEvent;
 use super::WhiteOut;
 
 /// Run change functions to an unit's stat
+/// inside ControlMutex::System
 pub fn eval_instant_skill(
     mut target: Query<(Entity, &mut Health, &mut Block, Option<&Player>), Without<Skill>>,
     skill_q: Query<
@@ -18,6 +19,7 @@ pub fn eval_instant_skill(
     mut ev_enemykilled: EventWriter<EnemyKilledEvent>,
     mut commands: Commands,
 ) {
+    info!("ControlMutex::System: eval_instant_skill");
     for ev in ev_evalskill.iter() {
         let (target_ent, mut target_health, mut target_block, target_player_tag) =
             target.get_mut(ev.target).expect("can't find target entity");
@@ -75,10 +77,12 @@ pub fn eval_heal(skill_heal: Option<&Heal>, target_health: &mut Health) {
     }
 }
 /// Evaluate channel skills
+/// Run inside ControlMutex::System
 pub fn eval_channeling_skill(
     mut ev_evalskill: EventReader<EvalChannelingSkillEvent>,
     mut ev_endturn: EventWriter<TurnEndEvent>,
 ) {
+    info!("ControlMutex::System: eval_channeling_skill");
     for _ in ev_evalskill.iter() {
         ev_endturn.send(TurnEndEvent);
     }
