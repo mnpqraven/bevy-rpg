@@ -27,15 +27,16 @@ struct ContextWindow;
 #[derive(Component)]
 struct PromptWindow;
 /// Vector of 2, pass true to same_skill_selected if both are equal
-#[derive(Component, Debug)]
+#[derive(Resource, Debug)]
 struct ContextHistory(Option<SkillEnt>);
-#[derive(Component, Debug)]
+#[derive(Resource, Debug)]
 struct SelectingSkill(Option<Entity>);
-#[derive(Debug)]
+#[derive(Resource, Debug)]
 pub struct CurrentCaster(pub Option<Entity>);
 /// Event { Entity }: entity id of the target (by skill/user)
 struct TargetSelectEvent(Entity);
 
 /// Resource (Handle<Font>)
 #[derive(Clone)]
+#[derive(Resource)]
 pub struct FontSheet(pub Handle<Font>);

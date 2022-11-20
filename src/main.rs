@@ -1,4 +1,4 @@
-use bevy::{log::LogSettings, prelude::*};
+use bevy::{log::LogPlugin, prelude::*};
 
 use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
 use ecs::component::{Channel, LabelName};
@@ -12,19 +12,24 @@ mod ui;
 
 fn main() {
     App::new()
-        // .add_plugins(DefaultPlugins)
-        .insert_resource(WindowDescriptor {
-            title: "bevy-rpg".to_string(),
-            width: 1280.,
-            height: 768.,
-            ..default()
-        })
-        .insert_resource(LogSettings {
-            filter: "info,wgpu_core=warn,wgpu_hal=warn,othirpg=debug".into(),
-            level: bevy::log::Level::DEBUG,
-        })
         // bevy plugins
-        .add_plugins(DefaultPlugins)
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    window: WindowDescriptor {
+                        title: "bevy-rpg".to_string(),
+                        width: 1280.,
+                        height: 768.,
+                        ..default()
+                    },
+                    ..default()
+                })
+                .set(LogPlugin {
+                    filter: "info,wgpu_core=warn,wgpu_hal=warn,othirpg=debug".into(),
+                    level: bevy::log::Level::DEBUG,
+                })
+                .set(ImagePlugin::default_nearest()),
+        )
         // user modules
         .add_plugin(skills::SkillPlugin)
         .add_plugin(ui::UIPlugin)
@@ -54,5 +59,5 @@ fn x11_scale(mut windows: ResMut<Windows>) {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 }

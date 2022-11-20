@@ -40,6 +40,7 @@ pub struct TurnEndEvent;
 /// How long the animation should be running
 /// We are using a global timer so we don't
 /// reset the timer on every system call
+#[derive(Resource)]
 struct AnimationLengthConfig {
     // TODO: this is supposed to be updated for different animations
     timer: Timer,
@@ -77,7 +78,7 @@ impl Plugin for CombatPlugin {
                     .into(),
             )
             .insert_resource(AnimationLengthConfig {
-                timer: Timer::from_seconds(2., false),
+                timer: Timer::from_seconds(2., TimerMode::Once),
             })
             .add_system(animate_skill.run_in_state(ControlMutex::System))
             .insert_resource(process::TurnOrderList::<Entity, Speed>::new())

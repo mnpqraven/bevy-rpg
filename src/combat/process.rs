@@ -4,7 +4,7 @@ use std::{cmp::Reverse, fmt::Display};
 use crate::ecs::component::*;
 use bevy::prelude::*;
 
-#[derive(Debug, Clone)]
+#[derive(Resource, Debug, Clone)]
 pub struct TurnOrderList<T, U> {
     //entity, speed, ..
     unit_vec: Vec<(T, U)>,
