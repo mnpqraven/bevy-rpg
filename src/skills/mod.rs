@@ -2,8 +2,8 @@ mod parser;
 
 use bevy::prelude::*;
 
-use crate::game::bundle::*;
 use crate::ecs::component::*;
+use crate::game::bundle::*;
 
 use self::parser::scan_skillbook_yaml;
 use self::parser::SkillDataTable;
@@ -20,13 +20,14 @@ fn load_skillbook(mut commands: Commands) {
     let skilldata: Vec<SkillDataTable> = scan_skillbook_yaml();
     for skill in skilldata.iter() {
         let skill_ent = commands
-            .spawn_bundle(SkillBundle {
+            .spawn(SkillBundle {
                 name: LabelName(skill.label_name.to_owned()),
                 skill_group: skill.skill_group.clone(),
                 target: skill.target.clone(),
                 ..default()
             })
             .id();
+        // TODO: refactor this monstrosity
         if skill.damage.is_some() {
             commands
                 .entity(skill_ent)

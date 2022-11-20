@@ -32,13 +32,13 @@ pub fn load_ascii(
     mut texture_atlas: ResMut<Assets<TextureAtlas>>,
 ) {
     let texture_handle = asset_server.load("ascii.png");
-    let atlas = TextureAtlas::from_grid_with_padding(
+    let atlas = TextureAtlas::from_grid(
         texture_handle,
         Vec2::splat(9.),
         16,
         16,
-        Vec2::splat(2.),
-        Vec2::splat(0.),
+        Some(Vec2::splat(2.)),
+        Some(Vec2::splat(0.)),
     );
     let texture_atlas_handle = texture_atlas.add(atlas);
     commands.insert_resource(AsciiSheet(texture_atlas_handle));
@@ -47,7 +47,7 @@ pub fn load_ascii(
 /// spawn ally sprites in the env state, movable
 fn spawn_env_allysp(mut commands: Commands, ascii: Res<AsciiSheet>) {
     commands
-        .spawn_bundle(SpriteSheetBundle {
+        .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: 5,
                 ..default()
@@ -56,10 +56,12 @@ fn spawn_env_allysp(mut commands: Commands, ascii: Res<AsciiSheet>) {
             transform: Transform::from_scale(Vec3::splat(8.)),
             ..default()
         })
-        .insert(Player)
-        .insert(LabelName("Othi".to_string()))
-        .insert(IsMoving(false))
-        .insert(EnvSprite);
+        .insert((
+            Player,
+            LabelName("Othi".to_string()),
+            IsMoving(false),
+            EnvSprite,
+        ));
 }
 /// Spawn friendly units (only entities)
 pub fn spawn_combat_allysp(
@@ -68,16 +70,16 @@ pub fn spawn_combat_allysp(
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
     let handle: Handle<Image> = asset_server.load("gabe-idle-run.png");
-    let texture_atlas = TextureAtlas::from_grid(handle, Vec2::new(24., 24.), 7, 1);
+    let texture_atlas = TextureAtlas::from_grid(handle, Vec2::new(24., 24.), 7, 1, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
     // dummy
     let handle2: Handle<Image> = asset_server.load("mani-idle-run.png");
-    let texture_atlas2 = TextureAtlas::from_grid(handle2, Vec2::new(24., 24.), 7, 1);
+    let texture_atlas2 = TextureAtlas::from_grid(handle2, Vec2::new(24., 24.), 7, 1, None, None);
     let texture_atlas_handle2 = texture_atlases.add(texture_atlas2);
 
     let _player = commands
-        .spawn_bundle(SpriteSheetBundle {
+        .spawn(SpriteSheetBundle {
             texture_atlas: texture_atlas_handle,
             transform: Transform {
                 translation: Vec3 {
@@ -90,22 +92,24 @@ pub fn spawn_combat_allysp(
             },
             ..default()
         })
-        .insert(AnimationTimer(Timer::from_seconds(0.1, false)))
-        .insert(Player)
-        .insert(LabelName("Othi".to_string()))
-        .insert(Health(100))
-        .insert(MaxHealth(100))
-        .insert(Mana(100))
-        .insert(MaxMana(100))
-        .insert(Speed(0))
-        .insert(Block::default())
-        .insert(IsMoving(false))
-        .insert(CombatSprite)
+        .insert((
+            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
+            Player,
+            LabelName("Othi".to_string()),
+            Health(100),
+            MaxHealth(100),
+            Mana(100),
+            MaxMana(100),
+            Speed(0),
+            Block::default(),
+            IsMoving(false),
+            CombatSprite,
+        ))
         .id();
     // debug!("spawned player sprite {:?}", _player);
     // ally for debug
     let _ally = commands
-        .spawn_bundle(SpriteSheetBundle {
+        .spawn(SpriteSheetBundle {
             texture_atlas: texture_atlas_handle2,
             transform: Transform {
                 translation: Vec3 {
@@ -118,16 +122,18 @@ pub fn spawn_combat_allysp(
             },
             ..default()
         })
-        .insert(AnimationTimer(Timer::from_seconds(0.1, false)))
-        .insert(Ally)
-        .insert(LabelName("Test ally".to_string()))
-        .insert(Health(80))
-        .insert(MaxHealth(80))
-        .insert(Mana(30))
-        .insert(Block::default())
-        .insert(Speed(1))
-        .insert(IsMoving(false))
-        .insert(CombatSprite)
+        .insert((
+            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
+            Ally,
+            LabelName("Test ally".to_string()),
+            Health(80),
+            MaxHealth(80),
+            Mana(30),
+            Block::default(),
+            Speed(1),
+            IsMoving(false),
+            CombatSprite,
+        ))
         .id();
     // debug!("spawn ally sprite {:?}", _ally)
 }
@@ -139,11 +145,11 @@ pub fn spawn_combat_enemysp(
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
     let handle: Handle<Image> = asset_server.load("mani-idle-run.png");
-    let texture_atlas = TextureAtlas::from_grid(handle, Vec2::new(24., 24.), 7, 1);
+    let texture_atlas = TextureAtlas::from_grid(handle, Vec2::new(24., 24.), 7, 1, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
     let _enemy = commands
-        .spawn_bundle(SpriteSheetBundle {
+        .spawn(SpriteSheetBundle {
             texture_atlas: texture_atlas_handle, // Handle<TextureAtlas>
             transform: Transform::from_scale(Vec3::splat(5.)),
             sprite: TextureAtlasSprite {
@@ -152,20 +158,22 @@ pub fn spawn_combat_enemysp(
             },
             ..default()
         })
-        .insert(AnimationTimer(Timer::from_seconds(0.1, false)))
-        .insert(Enemy)
-        .insert(LabelName("training dummy 2".to_string()))
-        .insert(Health(9999))
-        .insert(MaxHealth(9999))
-        .insert(Mana(100))
-        .insert(Block(2))
-        .insert(Speed(-1))
-        .insert(CombatSprite)
+        .insert((
+            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
+            Enemy,
+            LabelName("training dummy 2".to_string()),
+            Health(9999),
+            MaxHealth(9999),
+            Mana(100),
+            Block(2),
+            Speed(-1),
+            CombatSprite,
+        ))
         .id();
     // debug!("spawned enemy sprite {:?}", _enemy);
 }
 
-/// Resource
 /// contains ascii sheets in assets folder,
 /// can be accessed with `texture_atlas` in `SpriteSheetBundle`
+#[derive(Resource)]
 pub struct AsciiSheet(Handle<TextureAtlas>);

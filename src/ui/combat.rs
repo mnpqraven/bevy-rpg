@@ -1,7 +1,7 @@
 use super::*;
-use crate::{ecs::component::*, combat::ControlMutex};
 use crate::game::despawn_with;
-use bevy::{prelude::*, render::texture::ImageSettings};
+use crate::{combat::ControlMutex, ecs::component::*};
+use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 use style::*;
 
@@ -54,15 +54,14 @@ impl Plugin for CombatUIPlugin {
                     .into(),
             )
             .add_exit_system(SkillContextStatus::Open, despawn_with::<ContextWindow>)
-            .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>)
-            .insert_resource(ImageSettings::default_nearest());
+            .add_exit_system(TargetPromptStatus::Open, despawn_with::<PromptWindow>);
     }
 }
 
 /// Draws "enter combat" button (debugging)
 fn draw_combat_button(mut commands: Commands, font_handle: Res<FontSheet>) {
     commands
-        .spawn_bundle(ButtonBundle {
+        .spawn(ButtonBundle {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: UiRect {
@@ -76,13 +75,13 @@ fn draw_combat_button(mut commands: Commands, font_handle: Res<FontSheet>) {
                 size: Size::new(Val::Px(210.), Val::Px(30.)),
                 ..default()
             },
-            color: NORMAL_BUTTON.into(),
+            background_color: NORMAL_BUTTON.into(),
             ..default()
         })
         // text is a child component of this ButtonBundle
         // text can only exist inside ButtonBundle
         .with_children(|parent| {
-            parent.spawn_bundle(TextBundle::from_section(
+            parent.spawn(TextBundle::from_section(
                 "enter combat",
                 textstyle_skill_label(&font_handle),
             ));
@@ -97,7 +96,7 @@ pub fn draw_skill_icons(
 ) {
     for (index, (skill_ent, name)) in skills_q.iter().enumerate() {
         commands
-            .spawn_bundle(ButtonBundle {
+            .spawn(ButtonBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
@@ -111,19 +110,17 @@ pub fn draw_skill_icons(
                     size: Size::new(Val::Px(160.), Val::Px(35.)),
                     ..default()
                 },
-                color: NORMAL_BUTTON.into(),
+                background_color: NORMAL_BUTTON.into(),
                 ..default()
             })
             .with_children(|parent| {
-                parent.spawn_bundle(TextBundle::from_section(
+                parent.spawn(TextBundle::from_section(
                     &name.0,
                     textstyle_skill_label(&font_handle),
                 ));
             })
             // add button specific component meta
-            .insert(Skill)
-            .insert(SkillEnt(skill_ent))
-            .insert(SkillIcon);
+            .insert((Skill, SkillEnt(skill_ent), SkillIcon));
     }
 }
 
@@ -163,7 +160,7 @@ fn draw_prompt_window(
     );
     for (unit_ent, unit_name, ..) in filtered_units {
         commands
-            .spawn_bundle(ButtonBundle {
+            .spawn(ButtonBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
@@ -175,28 +172,27 @@ fn draw_prompt_window(
                     border: UiRect::all(Val::Px(2.)),
                     ..default()
                 },
-                color: Color::PINK.into(),
+                background_color: Color::PINK.into(),
                 ..default()
             })
             .with_children(|parent| {
-                parent.spawn_bundle(TextBundle::from_section(
+                parent.spawn(TextBundle::from_section(
                     &unit_name.0,
                     textstyle_skill_label(&font_handle),
                 ));
             })
-            .insert(TargetEnt(unit_ent))
-            .insert(PromptWindow);
+            .insert((TargetEnt(unit_ent), PromptWindow));
         index += 1.;
     }
 }
 /// Interaction logic for targetting window
 fn prompt_window_interact(
     mut prompt_window_interaction_q: Query<
-        (&Interaction, &mut UiColor, &TargetEnt),
+        (&Interaction, &mut BackgroundColor, &TargetEnt),
         (Changed<Interaction>, With<PromptWindow>),
     >,
     mut ev_targetselect: EventWriter<TargetSelectEvent>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     for (interaction, mut color, target_ent) in &mut prompt_window_interaction_q {
         *color = match *interaction {
@@ -230,7 +226,7 @@ fn evread_targetselect(
 /// interaction logic for combat button (debug)
 fn combat_button_interact(
     mut interaction_q: Query<
-        (&Interaction, &mut UiColor, &Children),
+        (&Interaction, &mut BackgroundColor, &Children),
         (
             Changed<Interaction>,
             (
@@ -244,7 +240,7 @@ fn combat_button_interact(
     mut text_q: Query<&mut Text>,
     mut ev_buttonclick: EventWriter<CombatButtonEvent>,
     mut commands: Commands,
-    current_control_mutex: Res<CurrentState<ControlMutex>>
+    current_control_mutex: Res<CurrentState<ControlMutex>>,
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
         let mut text_data = text_q.get_mut(children[0]).unwrap();
@@ -266,7 +262,7 @@ fn combat_button_interact(
                 let lmao = match current_control_mutex.0 {
                     ControlMutex::Unit => "unit".to_string(),
                     ControlMutex::System => "system".to_string(),
-                    ControlMutex::Startup => "none".to_string()
+                    ControlMutex::Startup => "none".to_string(),
                 };
                 text_data.sections[0].value = lmao;
             }
@@ -317,7 +313,7 @@ fn skill_button_interact(
     context_state: Res<CurrentState<SkillContextStatus>>,
     mut commands: Commands,
     mut button_interaction_q: Query<
-        (&Interaction, &mut UiColor, &SkillEnt),
+        (&Interaction, &mut BackgroundColor, &SkillEnt),
         (Changed<Interaction>, With<Button>, With<Skill>),
     >,
     mut ev_skillcontext: EventWriter<SkillContextEvent>,
@@ -396,7 +392,7 @@ fn draw_skill_context(
         ),
         With<Skill>,
     >,
-    font_handle: Res<FontSheet>
+    font_handle: Res<FontSheet>,
 ) {
     // TODO: complete with info text and window size + placements
     // TODO: this block should be processed in parser.rs and reused
@@ -425,7 +421,7 @@ fn draw_skill_context(
             // 20/80, center alignment title
             commands
                 // root
-                .spawn_bundle(NodeBundle {
+                .spawn(NodeBundle {
                     style: Style {
                         position_type: PositionType::Absolute,
                         position: UiRect {
@@ -438,46 +434,46 @@ fn draw_skill_context(
                         flex_direction: FlexDirection::ColumnReverse, // top to bottom
                         ..default()
                     },
-                    color: Color::NONE.into(),
+                    background_color: Color::NONE.into(),
                     ..default()
                 })
                 // node/text title
                 // 20% height, center div
                 .with_children(|parent| {
                     parent
-                        .spawn_bundle(NodeBundle {
+                        .spawn(NodeBundle {
                             style: Style {
                                 size: Size::new(Val::Percent(100.), Val::Percent(20.)),
                                 justify_content: JustifyContent::Center,
                                 align_items: AlignItems::Center,
                                 ..default()
                             },
-                            color: Color::SILVER.into(),
+                            background_color: Color::SILVER.into(),
                             ..default()
                         })
                         .with_children(|parent| {
-                            parent.spawn_bundle(TextBundle::from_section(
+                            parent.spawn(TextBundle::from_section(
                                 name.0.clone(),
-                                textstyle_skill_label(&font_handle)
+                                textstyle_skill_label(&font_handle),
                             ));
                         });
                 })
                 // node/text info
                 .with_children(|parent| {
                     parent
-                        .spawn_bundle(NodeBundle {
+                        .spawn(NodeBundle {
                             style: Style {
                                 size: Size::new(Val::Percent(100.), Val::Percent(80.)),
                                 align_items: AlignItems::FlexEnd,
                                 ..default()
                             },
-                            color: Color::PURPLE.into(),
+                            background_color: Color::PURPLE.into(),
                             ..default()
                         })
                         .with_children(|parent| {
-                            parent.spawn_bundle(TextBundle::from_section(
+                            parent.spawn(TextBundle::from_section(
                                 skill_description,
-                                textstyle_skill_label(&font_handle)
+                                textstyle_skill_label(&font_handle),
                             ));
                         });
                 })
@@ -496,7 +492,7 @@ fn draw_hp_bars(
 ) {
     // left and right
     for (index, (unit_health, _, _, enemy_tag)) in unit_q.iter().enumerate() {
-        let pos: UiRect<Val> = match enemy_tag {
+        let pos: UiRect = match enemy_tag {
             Some(_) => UiRect {
                 right: Val::Percent(5.),
                 top: Val::Px(100. + index as f32 * 50.),
@@ -510,7 +506,7 @@ fn draw_hp_bars(
         };
         commands
             // root
-            .spawn_bundle(NodeBundle {
+            .spawn(NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: pos,
@@ -519,13 +515,13 @@ fn draw_hp_bars(
                     flex_direction: FlexDirection::ColumnReverse, // top to bottom
                     ..default()
                 },
-                color: Color::NONE.into(),
+                background_color: Color::NONE.into(),
                 ..default()
             })
             // node/text title
             // 20% height, center div
             .with_children(|parent| {
-                parent.spawn_bundle(TextBundle::from_section(
+                parent.spawn(TextBundle::from_section(
                     unit_health.0.to_string(),
                     TextStyle {
                         font: asset_server.load("font.ttf"),
@@ -549,7 +545,7 @@ fn draw_mp_bars(
 ) {
     // left and right
     for (index, (unit_mana, _, _, enemy_tag)) in unit_q.iter().enumerate() {
-        let pos: UiRect<Val> = match enemy_tag {
+        let pos: UiRect = match enemy_tag {
             Some(_) => UiRect {
                 right: Val::Percent(6.),
                 top: Val::Px(110. + index as f32 * 50.),
@@ -563,7 +559,7 @@ fn draw_mp_bars(
         };
         commands
             // root
-            .spawn_bundle(NodeBundle {
+            .spawn(NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: pos,
@@ -572,13 +568,13 @@ fn draw_mp_bars(
                     flex_direction: FlexDirection::ColumnReverse, // top to bottom
                     ..default()
                 },
-                color: Color::NONE.into(),
+                background_color: Color::NONE.into(),
                 ..default()
             })
             // node/text title
             // 20% height, center div
             .with_children(|parent| {
-                parent.spawn_bundle(TextBundle::from_section(
+                parent.spawn(TextBundle::from_section(
                     unit_mana.0.to_string(),
                     TextStyle {
                         font: asset_server.load("font.ttf"),
