@@ -32,7 +32,7 @@ pub struct LabelName(pub String);
 #[serde(rename = "target")]
 pub enum Target {
     Player,
-    Ally,
+    AllyAndSelf,
     AllyButSelf,
     AllyAOE,
     Enemy,
@@ -47,6 +47,7 @@ pub enum Target {
 #[derive(Component, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[serde(rename = "skill_group")]
 pub enum SkillGroup {
+    Player,
     Ally,
     Enemy,
     Universal,

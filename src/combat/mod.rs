@@ -9,6 +9,7 @@ use crate::ui::CurrentCaster;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
+use self::ai::AiPlugin;
 use self::process::TurnOrderList;
 
 pub struct CombatPlugin;
@@ -45,12 +46,14 @@ struct AnimationLengthConfig {
 }
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_loopless_state(ControlMutex::Startup)
+        app.add_plugin(AiPlugin)
+            .add_loopless_state(ControlMutex::Startup)
             .insert_resource(TurnOrderList::<Entity, Speed>::new())
             // Player turn start
             .add_event::<TurnStartEvent>()
             .add_event::<EnemyTurnStartEvent>()
             .add_event::<EnterWhiteOutEvent>()
+            .add_event::<ChooseAISkillEvent>()
             // ----
             .add_event::<EnemyKilledEvent>()
             .add_system(ev_enemykilled)
@@ -82,7 +85,7 @@ impl Plugin for CombatPlugin {
             .add_exit_system_set(
                 GameState::OutOfCombat,
                 ConditionSet::new()
-                // TODO: move back to sprite module, resolve data race
+                    // TODO: move back to sprite module, resolve data race
                     .with_system(spawn_combat_allysp)
                     .with_system(spawn_combat_enemysp)
                     .into(),
@@ -142,72 +145,28 @@ fn animate_skill(
     }
 }
 // ----------------------------------------------------------------------------
-/// Prepper when the enemy's turn starts
-/// FIXME: caster always default to the only existing enemy, will panic if there's
-/// multiple enemies.
-/// TODO: system to decide enemy ent
-fn ev_enemy_turn_start(
-    // TODO: refactor to other chunks later
-    player: Query<Entity, With<Player>>,
-    enemies: Query<Entity, With<Enemy>>,
-    mut ev_castskill: EventWriter<CastSkillEvent>,
-    enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
-    mut commands: Commands,
-) {
-    info!("WhoseTurn::Enemy");
-    // only enemy skills rn, expand to universal later when we restructure skill data
-    // TODO: fetch skill ent from enemy ai algorithm
-    for (enemy_skill_ent, _) in enemy_skill_q
-        .iter()
-        .filter(|(_, grp)| **grp == SkillGroup::Enemy)
-    {
-        let caster_ent = enemies.iter().next().unwrap();
-        commands.insert_resource(CurrentCaster(Some(caster_ent)));
-        ev_castskill.send(CastSkillEvent {
-            skill_ent: SkillEnt(enemy_skill_ent),
-            target: player.single(),
-            caster: caster_ent,
-        });
-    }
-}
-
-/// TODO: Refactoring 2 eval functions from players and enemies into 1
-#[allow(unused_variables)]
 fn eval_turn_start(
     // player: Query<Entity, With<Player>>,
     mut casting_ally_q: Query<(Entity, &mut Channel, &Casting), With<Player>>,
     skill_q: Query<(Option<&Damage>, Option<&Heal>, Option<&Block>), With<Skill>>,
     mut unit_q: Query<(&mut Health, &mut Block), Without<Skill>>,
     mut ev_endturn: EventWriter<TurnEndEvent>,
-    //
-    // enemies: Query<Entity, With<Enemy>>,
-    ev_castskill: EventWriter<CastSkillEvent>,
-    enemy_skill_q: Query<(Entity, &SkillGroup), With<Skill>>,
     mut commands: Commands,
-    //
     turn_order: ResMut<TurnOrderList<Entity, Speed>>,
     unit_tag_q: Query<
-        (
-            Entity,
-            Option<&Player>,
-            Option<&Ally>,
-            Option<&Enemy>,
-            &Speed,
-        ),
+        (Option<&Player>, Option<&Ally>, Option<&Enemy>),
         Or<(With<Player>, With<Ally>, With<Enemy>)>,
     >,
+    mut ev_choose_ai_skill: EventWriter<ChooseAISkillEvent>,
 ) {
     info!("[ENTER] ControlMutex::Unit: eval_turn_start");
     debug!("TurnStart for {:?}", turn_order.get_current());
     debug!("TurnOrderList debug {:?}", turn_order);
-    // see if it's ally, player or enemy
-    let (unit_ent, unit_player_tag, unit_ally_tag, unit_enemy_tag, _) = unit_tag_q
-        .get(*turn_order.get_current())
+    let (unit_player_tag, _, _) = unit_tag_q
+        .get(*turn_order.get_current().expect("turn order vec is blank"))
         .expect("should have at least 1 unit result");
-    // EVAL
-    // ----
-    // handle player case
-    if unit_ally_tag.is_some() {
+
+    if unit_player_tag.is_some() {
         // opens skill wheel (hacky)
         commands.insert_resource(NextState(SkillWheelStatus::Open));
         for (unit_ent, mut unit_channel, unit_casting) in &mut casting_ally_q {
@@ -236,10 +195,13 @@ fn eval_turn_start(
             }
         }
     } else {
-        // TODO: handle enemy and ally case
-        ev_endturn.send(TurnEndEvent);
+        ev_choose_ai_skill.send(ChooseAISkillEvent);
+        // BUG: sending TurnEndEvent here messes up ordering
+        // TODO: test to make sure this omit is correct
+        // ev_endturn.send(TurnEndEvent);
     }
 }
+pub struct ChooseAISkillEvent;
 
 /// Listens to SkillCastEvent from other modules
 ///
@@ -250,7 +212,7 @@ fn evread_castskill(
     skill_q: Query<(Entity, &LabelName, Option<&Channel>, &Target), With<Skill>>,
     mut ev_sk2eval: EventWriter<EvalSkillEvent>,
     mut ev_channelingsk2eval: EventWriter<EvalChannelingSkillEvent>,
-    mut ev_endturn: EventWriter<TurnEndEvent>
+    mut ev_endturn: EventWriter<TurnEndEvent>,
 ) {
     for ev in ev_castskill.iter() {
         for (skill_ent, skill_name, skill_channel, skill_target) in
@@ -326,21 +288,18 @@ fn evread_endturn(
     control_mutex: Res<CurrentState<ControlMutex>>,
     mut turn_order: ResMut<TurnOrderList<Entity, Speed>>,
 ) {
-    // time implement prototype
-    // TODO: needs to be in normal system and run every frame
-    // but only send once
-    // tick in event ?
-    // config.timer.tick(time.delta());
-    // if config.timer.finished() {}
     for _ in ev_endturn.iter() {
         info!("TurnEndEvent");
         // see if blocking with timer is works here
         // TODO: refactor + implement speed
         match control_mutex.0 {
             ControlMutex::Unit => commands.insert_resource(NextState(ControlMutex::System)),
-            _ => commands.insert_resource(NextState(ControlMutex::Unit)),
+            ControlMutex::Startup => commands.insert_resource(NextState(ControlMutex::Unit)),
+            ControlMutex::System => {
+                turn_order.next().expect("should not be empty");
+                commands.insert_resource(NextState(ControlMutex::Unit));
+            }
         }
-        turn_order.next();
     }
 }
 /// Listens to EnemyKilledEvent

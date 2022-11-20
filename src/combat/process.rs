@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use std::{cmp::Reverse, fmt::Display};
 
 // speed calc here
 use crate::ecs::component::*;
@@ -10,6 +10,17 @@ pub struct TurnOrderList<T, U> {
     unit_vec: Vec<(T, U)>,
     index: usize,
 }
+#[derive(Debug)]
+pub struct EmptyListError;
+impl Display for EmptyListError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TurnOrderList is empty, check if the generate function was ran before"
+        )
+    }
+}
+
 #[allow(dead_code)]
 impl<T, U> TurnOrderList<T, U>
 where
@@ -22,6 +33,9 @@ where
             index: 0,
         }
     }
+    pub fn is_empty(&self) -> bool {
+        self.unit_vec.is_empty()
+    }
     /// Sorts the collection based on value from lowest to highest,
     /// then transform to circular collection
     pub fn new_sorted(mut items: Vec<(T, U)>) -> Self {
@@ -33,24 +47,34 @@ where
     }
     /// Return the next item in the list and update the index, if the current
     /// index is at the end of the list, return the first item instead of None
-    pub fn next(&mut self) -> &(T, U) {
-        self.tick_index();
-        &self.unit_vec[self.index]
+    pub fn next(&mut self) -> Result<&(T, U), EmptyListError> {
+        self.tick_index()?;
+        Ok(&self.unit_vec[self.index])
     }
     /// returns the next item without updating the index
     pub fn peek(&self) -> &T {
         &self.unit_vec[(self.index + 1) % self.unit_vec.len()].0
     }
     /// Get current item
-    pub fn get_current(&self) -> &T {
-        &self.unit_vec[self.index].0
+    pub fn get_current(&self) -> Result<&T, EmptyListError> {
+        match self.unit_vec.is_empty() {
+            true => Err(EmptyListError),
+            false => Ok(&self.unit_vec[self.index].0),
+        }
     }
     /// Get item at specified index
-    pub fn get(&self, index: usize) -> &T {
-        &self.unit_vec[index].0
+    pub fn get(&self, index: usize) -> Result<&T, EmptyListError> {
+        match self.unit_vec.is_empty() {
+            true => Err(EmptyListError),
+            false => Ok(&self.unit_vec[index].0),
+        }
     }
-    fn tick_index(&mut self) {
-        self.index = (self.index + 1) % self.unit_vec.len();
+    fn tick_index(&mut self) -> Result<(), EmptyListError> {
+        match self.unit_vec.is_empty() {
+            true => return Err(EmptyListError),
+            false => self.index = (self.index + 1) % self.unit_vec.len(),
+        }
+        Ok(())
     }
     /// Remove the Some(indexed) element in the list, if it's before the
     /// current iterator then the index is shifted back once
@@ -87,8 +111,8 @@ pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Comman
     // NOTE: setup turn order here, refactor later
     // commands.insert_resource(TurnOrderList::new_sorted(query));
     let tol = TurnOrderList::new_sorted(query);
-    commands.insert_resource(tol.clone());
-    debug!("generate_turn_order {:?}", tol);
+    commands.insert_resource(tol);
+    // debug!("generate_turn_order {:?}", tol);
 }
 
 #[cfg(test)]
@@ -96,6 +120,7 @@ mod test {
     use super::*;
 
     fn unsorted_vec() -> Vec<(Option<i32>, i32)> {
+        // entity, speed
         vec![(None, 3), (None, 2), (None, 41), (None, 2), (None, 5)]
     }
     #[test]
@@ -111,22 +136,22 @@ mod test {
     fn next_pass_pass() {
         let list = unsorted_vec();
         let mut turnord = TurnOrderList::new_sorted(list);
-        assert_eq!(turnord.next().1, 5);
-        assert_eq!(turnord.next().1, 3);
-        assert_eq!(turnord.next().1, 2);
-        assert_eq!(turnord.next().1, 2);
-        assert_eq!(turnord.next().1, 41);
+        assert_eq!(turnord.next().unwrap().1, 5);
+        assert_eq!(turnord.next().unwrap().1, 3);
+        assert_eq!(turnord.next().unwrap().1, 2);
+        assert_eq!(turnord.next().unwrap().1, 2);
+        assert_eq!(turnord.next().unwrap().1, 41);
     }
     #[test]
     fn next_after_delete_pass() {
         let list = unsorted_vec();
         let mut turnord = TurnOrderList::new_sorted(list);
         turnord.unit_vec.remove(3);
-        assert_eq!(turnord.next().1, 5);
-        assert_eq!(turnord.next().1, 3);
+        assert_eq!(turnord.next().unwrap().1, 5);
+        assert_eq!(turnord.next().unwrap().1, 3);
         // assert_eq!(turnord.next().1, 2);
-        assert_eq!(turnord.next().1, 2);
-        assert_eq!(turnord.next().1, 41);
+        assert_eq!(turnord.next().unwrap().1, 2);
+        assert_eq!(turnord.next().unwrap().1, 41);
     }
     #[test]
     #[ignore = "haven't refactored"]
@@ -135,24 +160,24 @@ mod test {
         let mut turnord = TurnOrderList::new_sorted(list); // (2) 2 3 5 41
         assert_eq!(turnord.index, 0);
 
-        assert_eq!(turnord.next().1, 2); // 2 (2) 3 5 41
+        assert_eq!(turnord.next().unwrap().1, 2); // 2 (2) 3 5 41
         assert_eq!(turnord.index, 1);
 
-        assert_eq!(turnord.next().1, 3); // 2 2 (3) 5 41
+        assert_eq!(turnord.next().unwrap().1, 3); // 2 2 (3) 5 41
         assert_eq!(turnord.index, 2);
 
         turnord.remove(Some(turnord.index)); // 2 (2) 5 41
         assert_eq!(turnord.index, 1);
 
-        assert_eq!(turnord.next().1, 5); // 2 2 (5) 41
+        assert_eq!(turnord.next().unwrap().1, 5); // 2 2 (5) 41
         assert_eq!(turnord.index, 2);
-        assert_eq!(turnord.next().1, 41); // 2 2 5 (41)
+        assert_eq!(turnord.next().unwrap().1, 41); // 2 2 5 (41)
         turnord.remove(None); // 2 2 (5)
-        assert_eq!(turnord.get_current(), &Some(5));
+        assert_eq!(turnord.get_current().unwrap(), &Some(5));
 
-        assert_eq!(turnord.next().1, 2); // (2) 2 5
+        assert_eq!(turnord.next().unwrap().1, 2); // (2) 2 5
         turnord.remove(Some(1)); // (2) 5
-        assert_eq!(turnord.next().1, 5); // 2 (5)
+        assert_eq!(turnord.next().unwrap().1, 5); // 2 (5)
     }
     #[test]
     #[ignore = "haven't refactored"]
@@ -168,5 +193,11 @@ mod test {
         assert_eq!(turnord.take(None), (None, 2)); // take 2, vec (2) 3 41
         assert_eq!(turnord.index, 0);
         assert_eq!(turnord.unit_vec, vec![(None, 2), (None, 3), (None, 41)]);
+    }
+    #[test]
+    fn next_fail() {
+        // let list = Vec::new();
+        let mut turnord: TurnOrderList<Entity, Speed> = TurnOrderList::new();
+        assert!(turnord.next().is_err());
     }
 }

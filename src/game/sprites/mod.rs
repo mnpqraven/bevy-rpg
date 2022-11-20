@@ -70,7 +70,13 @@ pub fn spawn_combat_allysp(
     let handle: Handle<Image> = asset_server.load("gabe-idle-run.png");
     let texture_atlas = TextureAtlas::from_grid(handle, Vec2::new(24., 24.), 7, 1);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
-    commands
+
+    // dummy
+    let handle2: Handle<Image> = asset_server.load("mani-idle-run.png");
+    let texture_atlas2 = TextureAtlas::from_grid(handle2, Vec2::new(24., 24.), 7, 1);
+    let texture_atlas_handle2 = texture_atlases.add(texture_atlas2);
+
+    let _player = commands
         .spawn_bundle(SpriteSheetBundle {
             texture_atlas: texture_atlas_handle,
             transform: Transform {
@@ -94,11 +100,25 @@ pub fn spawn_combat_allysp(
         .insert(Speed(0))
         .insert(Block::default())
         .insert(IsMoving(false))
-        .insert(CombatSprite);
-
+        .insert(CombatSprite)
+        .id();
+    // debug!("spawned player sprite {:?}", _player);
     // ally for debug
-    commands
-        .spawn()
+    let _ally = commands
+        .spawn_bundle(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle2,
+            transform: Transform {
+                translation: Vec3 {
+                    x: -300.,
+                    y: 100.,
+                    z: 1.,
+                },
+                scale: Vec3::splat(5.),
+                ..default()
+            },
+            ..default()
+        })
+        .insert(AnimationTimer(Timer::from_seconds(0.1, false)))
         .insert(Ally)
         .insert(LabelName("Test ally".to_string()))
         .insert(Health(80))
@@ -107,7 +127,9 @@ pub fn spawn_combat_allysp(
         .insert(Block::default())
         .insert(Speed(1))
         .insert(IsMoving(false))
-        .insert(CombatSprite);
+        .insert(CombatSprite)
+        .id();
+    // debug!("spawn ally sprite {:?}", _ally)
 }
 
 /// Spawn enemies in combat game state (with sprites)
@@ -120,29 +142,7 @@ pub fn spawn_combat_enemysp(
     let texture_atlas = TextureAtlas::from_grid(handle, Vec2::new(24., 24.), 7, 1);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
-    // commands
-    //     .spawn_bundle(SpriteBundle {
-    //         texture: asset_server.load("icon.png"),
-    //         transform: Transform {
-    //             translation: Vec3 {
-    //                 x: 200.,
-    //                 y: 100.,
-    //                 z: 0.,
-    //             },
-    //             scale: Vec3::splat(0.3),
-    //             ..default()
-    //         },
-    //         ..default()
-    //     })
-    //     .insert(Enemy)
-    //     .insert(LabelName("training dummy".to_string()))
-    //     .insert(Health(40))
-    //     .insert(MaxHealth(40))
-    //     .insert(Mana(100))
-    //     .insert(Block(4))
-    //     .insert(CombatSprite);
-
-    commands
+    let _enemy = commands
         .spawn_bundle(SpriteSheetBundle {
             texture_atlas: texture_atlas_handle, // Handle<TextureAtlas>
             transform: Transform::from_scale(Vec3::splat(5.)),
@@ -160,7 +160,9 @@ pub fn spawn_combat_enemysp(
         .insert(Mana(100))
         .insert(Block(2))
         .insert(Speed(-1))
-        .insert(CombatSprite);
+        .insert(CombatSprite)
+        .id();
+    // debug!("spawned enemy sprite {:?}", _enemy);
 }
 
 /// Resource

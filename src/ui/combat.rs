@@ -153,7 +153,7 @@ fn draw_prompt_window(
     let filtered_units = units_q.iter().filter(
         |(unit_ent, .., player_tag, ally_tag, enemy_tag)| match target_type {
             Target::Player => player_tag.is_some(),
-            Target::Ally | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
+            Target::AllyAndSelf | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
             Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
             Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
             Target::Any => true,
