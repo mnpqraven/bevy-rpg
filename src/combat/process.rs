@@ -1,7 +1,8 @@
-use std::{cmp::Reverse, fmt::Display};
+use std::cmp::Reverse;
 
 // speed calc here
 use crate::ecs::component::*;
+use crate::ecs::error::DataError;
 use bevy::prelude::*;
 use iyes_loopless::state::NextState;
 
@@ -12,16 +13,6 @@ pub struct TurnOrderList<T, U> {
     //entity, speed, ..
     unit_vec: Vec<(T, U)>,
     index: usize,
-}
-#[derive(Debug)]
-pub struct EmptyListError;
-impl Display for EmptyListError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "TurnOrderList is empty, check if the generate function was ran before"
-        )
-    }
 }
 
 #[allow(dead_code)]
@@ -50,7 +41,7 @@ where
     }
     /// Return the next item in the list and update the index, if the current
     /// index is at the end of the list, return the first item instead of None
-    pub fn next(&mut self) -> Result<&(T, U), EmptyListError> {
+    pub fn next(&mut self) -> Result<&(T, U), DataError> {
         self.tick_index()?;
         Ok(&self.unit_vec[self.index])
     }
@@ -59,22 +50,22 @@ where
         &self.unit_vec[(self.index + 1) % self.unit_vec.len()].0
     }
     /// Get current item
-    pub fn get_current(&self) -> Result<&T, EmptyListError> {
+    pub fn get_current(&self) -> Result<&T, DataError> {
         match self.unit_vec.is_empty() {
-            true => Err(EmptyListError),
+            true => Err(DataError::EmptyList),
             false => Ok(&self.unit_vec[self.index].0),
         }
     }
     /// Get item at specified index
-    pub fn get(&self, index: usize) -> Result<&T, EmptyListError> {
+    pub fn get(&self, index: usize) -> Result<&T, DataError> {
         match self.unit_vec.is_empty() {
-            true => Err(EmptyListError),
+            true => Err(DataError::EmptyList),
             false => Ok(&self.unit_vec[index].0),
         }
     }
-    fn tick_index(&mut self) -> Result<(), EmptyListError> {
+    fn tick_index(&mut self) -> Result<(), DataError> {
         match self.unit_vec.is_empty() {
-            true => return Err(EmptyListError),
+            true => return Err(DataError::EmptyList),
             false => self.index = (self.index + 1) % self.unit_vec.len(),
         }
         Ok(())

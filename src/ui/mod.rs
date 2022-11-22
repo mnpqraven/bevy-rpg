@@ -36,7 +36,5 @@ pub struct CurrentCaster(pub Option<Entity>);
 /// Event { Entity }: entity id of the target (by skill/user)
 struct TargetSelectEvent(Entity);
 
-/// Resource (Handle<Font>)
-#[derive(Clone)]
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct FontSheet(pub Handle<Font>);
