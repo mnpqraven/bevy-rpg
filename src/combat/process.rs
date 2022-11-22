@@ -1,24 +1,18 @@
-use std::{cmp::Reverse, fmt::Display};
+use std::cmp::Reverse;
 
 // speed calc here
 use crate::ecs::component::*;
+use crate::ecs::error::DataError;
 use bevy::prelude::*;
+use iyes_loopless::state::NextState;
+
+use super::ControlMutex;
 
 #[derive(Resource, Debug, Clone)]
 pub struct TurnOrderList<T, U> {
     //entity, speed, ..
     unit_vec: Vec<(T, U)>,
     index: usize,
-}
-#[derive(Debug)]
-pub struct EmptyListError;
-impl Display for EmptyListError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "TurnOrderList is empty, check if the generate function was ran before"
-        )
-    }
 }
 
 #[allow(dead_code)]
@@ -47,7 +41,7 @@ where
     }
     /// Return the next item in the list and update the index, if the current
     /// index is at the end of the list, return the first item instead of None
-    pub fn next(&mut self) -> Result<&(T, U), EmptyListError> {
+    pub fn next(&mut self) -> Result<&(T, U), DataError> {
         self.tick_index()?;
         Ok(&self.unit_vec[self.index])
     }
@@ -56,22 +50,22 @@ where
         &self.unit_vec[(self.index + 1) % self.unit_vec.len()].0
     }
     /// Get current item
-    pub fn get_current(&self) -> Result<&T, EmptyListError> {
+    pub fn get_current(&self) -> Result<&T, DataError> {
         match self.unit_vec.is_empty() {
-            true => Err(EmptyListError),
+            true => Err(DataError::EmptyList),
             false => Ok(&self.unit_vec[self.index].0),
         }
     }
     /// Get item at specified index
-    pub fn get(&self, index: usize) -> Result<&T, EmptyListError> {
+    pub fn get(&self, index: usize) -> Result<&T, DataError> {
         match self.unit_vec.is_empty() {
-            true => Err(EmptyListError),
+            true => Err(DataError::EmptyList),
             false => Ok(&self.unit_vec[index].0),
         }
     }
-    fn tick_index(&mut self) -> Result<(), EmptyListError> {
+    fn tick_index(&mut self) -> Result<(), DataError> {
         match self.unit_vec.is_empty() {
-            true => return Err(EmptyListError),
+            true => return Err(DataError::EmptyList),
             false => self.index = (self.index + 1) % self.unit_vec.len(),
         }
         Ok(())
@@ -102,17 +96,44 @@ where
 }
 
 /// Query units and returns TurnOrderList
-/// TODO: result
-pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Commands) {
+pub fn gen_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Commands) {
     let mut query: Vec<(Entity, Speed)> = Vec::new();
     for (ent, speed_ptr) in unit_q.iter() {
         query.push((ent, *speed_ptr));
     }
     // NOTE: setup turn order here, refactor later
-    // commands.insert_resource(TurnOrderList::new_sorted(query));
     let tol = TurnOrderList::new_sorted(query);
     commands.insert_resource(tol);
-    // debug!("generate_turn_order {:?}", tol);
+    // assigns the correct mutex
+    commands.insert_resource(NextState(ControlMutex::Unit));
+}
+
+/// returns a vec of unit entities that can be chosen for a given Target type
+/// if you're having troubles with borrow checking the query try using .to_readonly()
+pub fn gen_target_bucket(
+    unit_q_ro: Query<
+        (Entity, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        Or<(With<Player>, With<Ally>, With<Enemy>)>,
+        >,
+    target_type: Target,
+    current_caster_ent: Option<Entity>,
+) -> Vec<Entity> {
+    let caster = current_caster_ent.expect("gen_target_bucket should not run when caster ent is None");
+    unit_q_ro
+        .iter()
+        .filter(
+            |(unit_ent, player_tag, ally_tag, enemy_tag)| match target_type {
+                Target::Player => player_tag.is_some(),
+                Target::Any => true,
+                Target::AllyAndSelf | Target::AllyAOE => unit_ent == &caster || ally_tag.is_some(),
+                Target::AllyButSelf => unit_ent != &caster && ally_tag.is_some(),
+                Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
+                Target::AnyButSelf => unit_ent != &caster,
+                Target::NoneButSelf => unit_ent == &caster,
+            },
+        )
+        .map(|i| i.0)
+        .collect()
 }
 
 #[cfg(test)]

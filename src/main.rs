@@ -9,6 +9,7 @@ mod environment;
 mod game;
 mod skills;
 mod ui;
+mod macros;
 
 fn main() {
     App::new()

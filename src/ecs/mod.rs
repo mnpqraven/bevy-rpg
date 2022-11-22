@@ -1,2 +1,3 @@
 pub mod component;
-pub mod resource;
+pub mod error;
+pub mod custom_trait;

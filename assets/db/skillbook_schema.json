@@ -26,7 +26,7 @@
                     { "const": "Player" },
                     { "const": "AnyButSelf" },
                     { "const": "NoneButSelf" },
-                    { "const": "Ally" },
+                    { "const": "AllyAndSelf" },
                     { "const": "AllyButSelf" },
                     { "const": "AllyAOE" },
                     { "const": "Enemy" },

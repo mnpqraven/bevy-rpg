@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 
 use crate::{ecs::component::*, ui::CurrentCaster};
 
-use super::{process::TurnOrderList, ChooseAISkillEvent};
+use super::{process::{TurnOrderList, gen_target_bucket}, ChooseAISkillEvent};
 pub struct AiPlugin;
 
 impl Plugin for AiPlugin {
@@ -15,22 +15,19 @@ impl Plugin for AiPlugin {
 
 fn choose_skill(
     skill_q: Query<(Entity, &SkillGroup, &Target), With<Skill>>,
-    unit_type: Query<
-        (Entity, Option<&Ally>, Option<&Enemy>, &Speed),
-        Or<(With<Player>, With<Ally>, With<Enemy>)>,
-    >,
-    target_search_q: Query<
-        (Entity, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+    unit_q: Query<
+        (Entity, Option<&Player>,Option<&Ally>, Option<&Enemy>),
         Or<(With<Player>, With<Ally>, With<Enemy>)>,
     >,
     turnorder: Res<TurnOrderList<Entity, Speed>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     mut ev_choose_ai_skill: EventReader<ChooseAISkillEvent>,
-    mut commands: Commands
+    mut commands: Commands,
+    current_caster: Res<CurrentCaster>,
 ) {
     for _ in ev_choose_ai_skill.iter() {
         if !&turnorder.is_empty() {
-            let (unit_ent, ally_tag, enemy_tag, _) = unit_type
+            let (unit_ent, _, ally_tag, enemy_tag) = unit_q
                 .get(*turnorder.get_current().expect("turn order vec is blank"))
                 .unwrap();
             let filter: SkillGroup = match true {
@@ -38,43 +35,18 @@ fn choose_skill(
                 true if enemy_tag.is_some() => SkillGroup::Enemy,
                 _ => SkillGroup::Universal,
             };
+            // gather all skills from either enemy grp or ally
             let pool: Vec<(Entity, &SkillGroup, &Target)> =
                 skill_q.iter().filter(|item| item.1.eq(&filter)).collect();
             let rng_index = thread_rng().gen_range(0..pool.len());
-            // hard code target selecting
-            let target_list: Vec<(Entity, Option<&Player>, Option<&Ally>, Option<&Enemy>)> =
-                // TODO: refactor this monstrosity
-                match pool[rng_index].2 {
-                    Target::Player | Target::NoneButSelf => target_search_q
-                        .iter()
-                        .filter(|item| item.1.is_some())
-                        .collect(),
-                    Target::AllyAndSelf | Target::AllyAOE => target_search_q
-                        .iter()
-                        .filter(|item| item.2.is_some() || item.1.is_some())
-                        .collect(),
-                    Target::AllyButSelf => target_search_q
-                        .iter()
-                        .filter(|item| item.2.is_some() && item.1.is_none())
-                        .collect(),
-                    Target::Enemy | Target::EnemyAOE => target_search_q
-                        .iter()
-                        .filter(|item| item.3.is_some())
-                        .collect(),
-                    Target::Any => target_search_q
-                        .iter()
-                        .filter(|item| item.1.is_some() || item.2.is_some() || item.3.is_some())
-                        .collect(),
-                    Target::AnyButSelf => target_search_q
-                        .iter()
-                        .filter(|item| item.1.is_none())
-                        .collect(),
-                };
-            let target_ent: Entity = target_list[0].0;
+            let target_type = pool[rng_index].2.clone();
+
+            let filtered_units = gen_target_bucket(unit_q.to_readonly(), target_type, current_caster.0);
+
             commands.insert_resource(CurrentCaster(Some(unit_ent)));
             ev_castskill.send(CastSkillEvent {
                 skill_ent: SkillEnt(pool[rng_index].0),
-                target: target_ent,
+                target: filtered_units[0],
                 caster: unit_ent,
             });
         }
