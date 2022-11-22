@@ -3,6 +3,9 @@ use std::{cmp::Reverse, fmt::Display};
 // speed calc here
 use crate::ecs::component::*;
 use bevy::prelude::*;
+use iyes_loopless::state::NextState;
+
+use super::ControlMutex;
 
 #[derive(Resource, Debug, Clone)]
 pub struct TurnOrderList<T, U> {
@@ -109,10 +112,10 @@ pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Comman
         query.push((ent, *speed_ptr));
     }
     // NOTE: setup turn order here, refactor later
-    // commands.insert_resource(TurnOrderList::new_sorted(query));
     let tol = TurnOrderList::new_sorted(query);
     commands.insert_resource(tol);
-    // debug!("generate_turn_order {:?}", tol);
+    // assigns the correct mutex
+    commands.insert_resource(NextState(ControlMutex::Unit));
 }
 
 #[cfg(test)]

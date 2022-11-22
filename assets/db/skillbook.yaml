@@ -1,3 +1,4 @@
+# TODO: skill_group field should be aray
 ---
 - label_name: Basic Strike
   skill_group: Universal

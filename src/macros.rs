@@ -1,6 +1,5 @@
-/// for now struct needs to be a valid tuple struct Struct(i32)
-/// Implements the Stat<T> trait to basic game stat, T is the data type,
-/// usually i32
+/// Implements the Stat<T> trait to basic game stat
+/// T a component tuple struct, e.g Block(i32)
 #[macro_export]
 macro_rules! impl_stat {
     ($t:ty, $($s:ty),+) => {
@@ -12,5 +11,17 @@ macro_rules! impl_stat {
                 }
             }
         )+
+    };
+}
+
+/// Implements the Description trait
+#[macro_export]
+macro_rules! impl_desc {
+    ($a:ty, $s:expr) => {
+        impl Description for $a {
+            fn get_description(&self) -> String {
+                format!($s, self.stat())
+            }
+        }
     };
 }

@@ -30,10 +30,7 @@ pub struct _SpecialTriggerEvent;
 pub struct _GameOverEvent;
 
 pub struct _FightClearedEvent;
-pub struct EnemyKilledEvent(Entity);
-
-pub struct TurnStartEvent;
-pub struct EnemyTurnStartEvent;
+pub struct UnitKilledEvent(Entity);
 
 pub struct TurnEndEvent;
 
@@ -50,26 +47,13 @@ impl Plugin for CombatPlugin {
         app.add_plugin(AiPlugin)
             .add_loopless_state(ControlMutex::Startup)
             .insert_resource(TurnOrderList::<Entity, Speed>::new())
-            // Player turn start
-            .add_event::<TurnStartEvent>()
-            .add_event::<EnemyTurnStartEvent>()
-            .add_event::<EnterWhiteOutEvent>()
-            .add_event::<ChooseAISkillEvent>()
-            // ----
-            .add_event::<EnemyKilledEvent>()
-            .add_system(ev_enemykilled)
-            // ----
-            .add_event::<CastSkillEvent>()
-            .add_system(evread_castskill)
-            .add_event::<EvalSkillEvent>()
-            .add_event::<EvalChannelingSkillEvent>()
-            // ----
-            .add_event::<TurnEndEvent>()
-            .add_system(evread_endturn)
-            // ----
+            .insert_resource(AnimationLengthConfig {
+                timer: Timer::from_seconds(2., TimerMode::Once),
+            })
+            .insert_resource(process::TurnOrderList::<Entity, Speed>::new())
+            // States
             .add_enter_system(ControlMutex::Unit, eval_turn_start)
             .add_exit_system(ControlMutex::Unit, despawn_with::<SkillIcon>)
-            // ----
             .add_enter_system_set(
                 ControlMutex::System,
                 ConditionSet::new()
@@ -77,11 +61,7 @@ impl Plugin for CombatPlugin {
                     .with_system(eval::eval_channeling_skill)
                     .into(),
             )
-            .insert_resource(AnimationLengthConfig {
-                timer: Timer::from_seconds(2., TimerMode::Once),
-            })
             .add_system(animate_skill.run_in_state(ControlMutex::System))
-            .insert_resource(process::TurnOrderList::<Entity, Speed>::new())
             // TODO: fix hack
             .add_exit_system_set(
                 GameState::OutOfCombat,
@@ -91,21 +71,24 @@ impl Plugin for CombatPlugin {
                     .with_system(spawn_combat_enemysp)
                     .into(),
             )
-            .add_enter_system_set(
-                GameState::InCombat,
-                ConditionSet::new()
-                    .with_system(process::generate_turn_order)
-                    .with_system(delegate_mutex)
-                    .into(),
+            .add_enter_system(GameState::InCombat, process::generate_turn_order)
+            // Events
+            .add_event::<EnterWhiteOutEvent>()
+            .add_event::<ChooseAISkillEvent>()
+            .add_event::<UnitKilledEvent>()
+            .add_event::<CastSkillEvent>()
+            .add_event::<EvalSkillEvent>()
+            .add_event::<EvalChannelingSkillEvent>()
+            .add_event::<TurnEndEvent>()
+            .add_system_set(
+                SystemSet::new()
+                    .with_system(ev_enemykilled)
+                    .with_system(evread_castskill)
+                    .with_system(evread_endturn),
             );
     }
 }
 
-/// assigns the correct mutex
-/// TODO: refactor into setup system set
-fn delegate_mutex(mut commands: Commands) {
-    commands.insert_resource(NextState(ControlMutex::Unit));
-}
 // ----------------------------------------------------------------------------
 // TODO: move code chunk + finish
 /// animate the skill animation after casting a skill
@@ -190,7 +173,6 @@ fn eval_turn_start(
                 // no longer casting, not ending turn + allow choosing skill
             } else {
                 // skips player turn when casting
-                // TODO: skips to ally turn when implemented
                 ev_endturn.send(TurnEndEvent);
                 unit_channel.0 -= 1;
             }
@@ -224,13 +206,13 @@ fn evread_castskill(
                 skill_ent, skill_name.0, skill_target, ev.caster, ev.target
             );
             if let Some(skill_channel) = skill_channel {
-                commands
-                    .entity(ev.caster)
-                    .insert(Channel(skill_channel.0))
-                    .insert(Casting {
+                commands.entity(ev.caster).insert((
+                    Channel(skill_channel.0),
+                    Casting {
                         skill_ent,
                         target_ent: ev.target,
-                    });
+                    },
+                ));
                 ev_channelingsk2eval.send(EvalChannelingSkillEvent {
                     skill: ev.skill_ent.0,
                     channel: *skill_channel,
@@ -274,10 +256,10 @@ pub struct EvalChannelingSkillEvent {
     caster: Entity,
 }
 
-// enters White Out when taking lethal damage
-// player is at negative health but doesn't die yet,
-// and will die if they get attacked again (opens up pre-casting heal)
-// leaves White Out when they're at positive health
+/// enters White Out when taking lethal damage
+/// player is at negative health but doesn't die yet,
+/// and will die if they get attacked again (opens up pre-casting heal)
+/// leaves White Out when they're at positive health
 #[derive(Component)]
 pub struct WhiteOut;
 pub struct EnterWhiteOutEvent(Entity);
@@ -291,8 +273,6 @@ fn evread_endturn(
 ) {
     for _ in ev_endturn.iter() {
         info!("TurnEndEvent");
-        // see if blocking with timer is works here
-        // TODO: refactor + implement speed
         match control_mutex.0 {
             ControlMutex::Unit => commands.insert_resource(NextState(ControlMutex::System)),
             ControlMutex::Startup => commands.insert_resource(NextState(ControlMutex::Unit)),
@@ -304,7 +284,7 @@ fn evread_endturn(
     }
 }
 /// Listens to EnemyKilledEvent
-fn ev_enemykilled(mut ev_enemykilled: EventReader<EnemyKilledEvent>, mut commands: Commands) {
+fn ev_enemykilled(mut ev_enemykilled: EventReader<UnitKilledEvent>, mut commands: Commands) {
     for ev in ev_enemykilled.iter() {
         info!("{:?} slain", ev.0);
         commands.entity(ev.0).despawn();

@@ -26,7 +26,7 @@ fn choose_skill(
     turnorder: Res<TurnOrderList<Entity, Speed>>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     mut ev_choose_ai_skill: EventReader<ChooseAISkillEvent>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     for _ in ev_choose_ai_skill.iter() {
         if !&turnorder.is_empty() {

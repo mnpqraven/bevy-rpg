@@ -1,7 +1,7 @@
 use crate::ecs::component::*;
 use bevy::prelude::*;
 
-use super::EnemyKilledEvent;
+use super::UnitKilledEvent;
 use super::EvalChannelingSkillEvent;
 use super::EvalSkillEvent;
 use super::TurnEndEvent;
@@ -16,7 +16,7 @@ pub fn eval_instant_skill(
         (With<Skill>, Without<Player>, Without<Enemy>),
     >,
     mut ev_evalskill: EventReader<EvalSkillEvent>,
-    mut ev_enemykilled: EventWriter<EnemyKilledEvent>,
+    mut ev_enemykilled: EventWriter<UnitKilledEvent>,
     mut commands: Commands,
 ) {
     info!("ControlMutex::System: eval_instant_skill");
@@ -34,15 +34,24 @@ pub fn eval_instant_skill(
         // ------------
         // TODO: Post-eval
         // NOTE: possible conflict with TurnEndEvent in animate_skill
-        if target_health.0 <= 0 {
-            match target_player_tag {
-                Some(_) => {
-                    // EnterWhiteOutEvent
-                    commands.entity(target_ent).insert(WhiteOut);
-                }
-                None => ev_enemykilled.send(EnemyKilledEvent(target_ent)),
-            }
+        if target_health.0 <= 0 && target_player_tag.is_some() {
+            // EnterWhiteOutEvent
+            commands.entity(target_ent).insert(WhiteOut);
+        } else {
+            ev_enemykilled.send(UnitKilledEvent(target_ent))
         }
+    }
+}
+
+/// Evaluate channel skills
+/// Run inside ControlMutex::System
+pub fn eval_channeling_skill(
+    mut ev_evalskill: EventReader<EvalChannelingSkillEvent>,
+    mut ev_endturn: EventWriter<TurnEndEvent>,
+) {
+    info!("ControlMutex::System: eval_channeling_skill");
+    for _ in ev_evalskill.iter() {
+        ev_endturn.send(TurnEndEvent);
     }
 }
 
@@ -74,16 +83,5 @@ pub fn eval_damage(
 pub fn eval_heal(skill_heal: Option<&Heal>, target_health: &mut Health) {
     if let Some(skill_heal) = skill_heal {
         target_health.0 += skill_heal.0;
-    }
-}
-/// Evaluate channel skills
-/// Run inside ControlMutex::System
-pub fn eval_channeling_skill(
-    mut ev_evalskill: EventReader<EvalChannelingSkillEvent>,
-    mut ev_endturn: EventWriter<TurnEndEvent>,
-) {
-    info!("ControlMutex::System: eval_channeling_skill");
-    for _ in ev_evalskill.iter() {
-        ev_endturn.send(TurnEndEvent);
     }
 }
