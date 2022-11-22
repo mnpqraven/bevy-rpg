@@ -1,2 +1,2 @@
 pub mod component;
-pub mod resource;
+pub mod custom_trait;
