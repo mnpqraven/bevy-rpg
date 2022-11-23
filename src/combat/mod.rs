@@ -1,6 +1,6 @@
 mod ai;
 mod eval;
-mod process;
+pub mod process;
 use crate::combat::eval::{eval_block, eval_damage, eval_heal};
 use crate::ecs::component::*;
 use crate::game::despawn_with;
@@ -71,7 +71,7 @@ impl Plugin for CombatPlugin {
                     .with_system(spawn_combat_enemysp)
                     .into(),
             )
-            .add_enter_system(GameState::InCombat, process::generate_turn_order)
+            .add_enter_system(GameState::InCombat, process::gen_turn_order)
             // Events
             .add_event::<EnterWhiteOutEvent>()
             .add_event::<ChooseAISkillEvent>()
@@ -144,8 +144,8 @@ fn eval_turn_start(
     mut ev_choose_ai_skill: EventWriter<ChooseAISkillEvent>,
 ) {
     info!("[ENTER] ControlMutex::Unit: eval_turn_start");
-    debug!("TurnStart for {:?}", turn_order.get_current());
-    debug!("TurnOrderList debug {:?}", turn_order);
+    info!("TurnStart for {:?}", turn_order.get_current());
+    info!("TurnOrderList debug {:?}", turn_order);
     let (unit_player_tag, _, _) = unit_tag_q
         .get(*turn_order.get_current().expect("turn order vec is blank"))
         .expect("should have at least 1 unit result");

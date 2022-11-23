@@ -1,4 +1,5 @@
 use super::*;
+use crate::combat::process::gen_target_bucket;
 use crate::game::despawn_with;
 use crate::{combat::ControlMutex, ecs::component::*};
 use bevy::prelude::*;
@@ -127,38 +128,23 @@ pub fn draw_skill_icons(
 /// Draws target selection window
 fn draw_prompt_window(
     mut commands: Commands,
-    units_q: Query<
-        (
-            Entity,
-            &LabelName,
-            Option<&Player>,
-            Option<&Ally>,
-            Option<&Enemy>,
-        ),
-        Or<(With<Enemy>, With<Player>, With<Ally>)>,
+    unit_q: Query<
+        (Entity, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        Or<(With<Player>, With<Ally>, With<Enemy>)>,
     >,
-    // queue skill table to get target type
+    name_q: Query<&LabelName>,
     skill_q: Query<&Target, With<Skill>>,
-    // apply skill from here to filter units
     selecting_skill: Res<SelectingSkill>,
     current_caster: Res<CurrentCaster>,
     font_handle: Res<FontSheet>,
 ) {
     let mut index: f32 = 0.;
-    let target_type = skill_q.get(selecting_skill.0.unwrap()).unwrap();
-    // TODO: smarter filter, refactor for reuse
-    let filtered_units = units_q.iter().filter(
-        |(unit_ent, .., player_tag, ally_tag, enemy_tag)| match target_type {
-            Target::Player => player_tag.is_some(),
-            Target::AllyAndSelf | Target::AllyAOE => player_tag.is_some() || ally_tag.is_some(),
-            Target::AllyButSelf => player_tag.is_none() && ally_tag.is_some(),
-            Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
-            Target::Any => true,
-            Target::AnyButSelf => player_tag.is_none(),
-            Target::NoneButSelf => unit_ent == &current_caster.0.unwrap(),
-        },
-    );
-    for (unit_ent, unit_name, ..) in filtered_units {
+    let target_type = skill_q
+        .get(selecting_skill.0.expect("SelectingSkill resource is emtpy"))
+        .expect("ui::combat.rs: can't get target type")
+        .clone();
+    let targets = gen_target_bucket(unit_q.to_readonly(), target_type, current_caster.0);
+    for unit_ent in targets {
         commands
             .spawn(ButtonBundle {
                 style: Style {
@@ -177,7 +163,7 @@ fn draw_prompt_window(
             })
             .with_children(|parent| {
                 parent.spawn(TextBundle::from_section(
-                    &unit_name.0,
+                    name_q.get(unit_ent).unwrap().0.clone(),
                     textstyle_skill_label(&font_handle),
                 ));
             })

@@ -105,8 +105,7 @@ where
 }
 
 /// Query units and returns TurnOrderList
-/// TODO: result
-pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Commands) {
+pub fn gen_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Commands) {
     let mut query: Vec<(Entity, Speed)> = Vec::new();
     for (ent, speed_ptr) in unit_q.iter() {
         query.push((ent, *speed_ptr));
@@ -116,6 +115,34 @@ pub fn generate_turn_order(unit_q: Query<(Entity, &Speed)>, mut commands: Comman
     commands.insert_resource(tol);
     // assigns the correct mutex
     commands.insert_resource(NextState(ControlMutex::Unit));
+}
+
+/// returns a vec of unit entities that can be chosen for a given Target type
+/// if you're having troubles with borrow checking the query try using .to_readonly()
+pub fn gen_target_bucket(
+    unit_q_ro: Query<
+        (Entity, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        Or<(With<Player>, With<Ally>, With<Enemy>)>,
+        >,
+    target_type: Target,
+    current_caster_ent: Option<Entity>,
+) -> Vec<Entity> {
+    let caster = current_caster_ent.expect("gen_target_bucket should not run when caster ent is None");
+    unit_q_ro
+        .iter()
+        .filter(
+            |(unit_ent, player_tag, ally_tag, enemy_tag)| match target_type {
+                Target::Player => player_tag.is_some(),
+                Target::Any => true,
+                Target::AllyAndSelf | Target::AllyAOE => unit_ent == &caster || ally_tag.is_some(),
+                Target::AllyButSelf => unit_ent != &caster && ally_tag.is_some(),
+                Target::Enemy | Target::EnemyAOE => enemy_tag.is_some(),
+                Target::AnyButSelf => unit_ent != &caster,
+                Target::NoneButSelf => unit_ent == &caster,
+            },
+        )
+        .map(|i| i.0)
+        .collect()
 }
 
 #[cfg(test)]
