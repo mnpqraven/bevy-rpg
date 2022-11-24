@@ -23,5 +23,13 @@ macro_rules! impl_desc {
                 format!($s, self.stat())
             }
         }
+        impl OptionDescription for Option<&$a> {
+            fn unwrap_description(&self) -> String {
+                match self {
+                    Some(value) => format!($s, value.stat()),
+                    None => String::new()
+                }
+            }
+        }
     };
 }

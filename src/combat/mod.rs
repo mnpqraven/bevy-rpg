@@ -22,7 +22,8 @@ pub enum ControlMutex {
     // Can put setup function here
     Startup,
     Unit, // player, ally, enemy go here
-    System,
+    SystemTurn,
+    SystemReward,
 }
 
 /// hp trigger, story event, etc
@@ -55,13 +56,17 @@ impl Plugin for CombatPlugin {
             .add_enter_system(ControlMutex::Unit, eval_turn_start)
             .add_exit_system(ControlMutex::Unit, despawn_with::<SkillIcon>)
             .add_enter_system_set(
-                ControlMutex::System,
+                ControlMutex::SystemTurn,
                 ConditionSet::new()
                     .with_system(eval::eval_instant_skill)
                     .with_system(eval::eval_channeling_skill)
                     .into(),
             )
-            .add_system(animate_skill.run_in_state(ControlMutex::System))
+            .add_enter_system_set(
+                ControlMutex::SystemReward,
+                ConditionSet::new().with_system(show_reward).into(),
+            )
+            .add_system(animate_skill.run_in_state(ControlMutex::SystemTurn))
             // TODO: fix hack
             .add_exit_system_set(
                 GameState::OutOfCombat,
@@ -280,12 +285,13 @@ fn evread_endturn(
     for _ in ev_endturn.iter() {
         info!("TurnEndEvent");
         match control_mutex.0 {
-            ControlMutex::Unit => commands.insert_resource(NextState(ControlMutex::System)),
+            ControlMutex::Unit => commands.insert_resource(NextState(ControlMutex::SystemTurn)),
             ControlMutex::Startup => commands.insert_resource(NextState(ControlMutex::Unit)),
-            ControlMutex::System => {
+            ControlMutex::SystemTurn => {
                 turn_order.next().expect("should not be empty");
                 commands.insert_resource(NextState(ControlMutex::Unit));
             }
+            ControlMutex::SystemReward => {} // TurnEndEvent should never trigger in SystemReward
         }
     }
 }
@@ -294,5 +300,11 @@ fn ev_enemykilled(mut ev_enemykilled: EventReader<UnitKilledEvent>, mut commands
     for ev in ev_enemykilled.iter() {
         info!("{:?} slain", ev.0);
         commands.entity(ev.0).despawn();
+        info!("moving to ControlMutex::SystemReward");
+        commands.insert_resource(NextState(ControlMutex::SystemReward))
     }
+}
+
+fn show_reward() {
+    info!("you won smth");
 }

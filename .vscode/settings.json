@@ -1,5 +1,5 @@
 {
     "yaml.schemas": {
-        "./assets/db/skillbook_schema.json": "skillbook.yaml"
+        "./schemas/skillbook_schema.json": "skillbook.yaml"
     }
 }

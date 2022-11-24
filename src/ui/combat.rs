@@ -1,6 +1,6 @@
 use super::*;
 use crate::combat::process::gen_target_bucket;
-use crate::ecs::traits::Description;
+use crate::ecs::traits::OptionDescription;
 use crate::game::despawn_with;
 use crate::{combat::ControlMutex, ecs::component::*};
 use bevy::prelude::*;
@@ -37,7 +37,7 @@ impl Plugin for CombatUIPlugin {
             .add_system(skill_button_interact.run_in_state(GameState::InCombat))
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
-            .add_enter_system(SkillContextStatus::Open, draw_skill_context)
+            .add_enter_system(SkillContextStatus::Open, draw_skill_info)
             .add_system(mouse_input_interact)
             .add_system_set(
                 SystemSet::new()
@@ -350,8 +350,9 @@ fn combat_button_interact(
                 *color = NORMAL_BUTTON.into();
                 let lmao = match current_control_mutex.0 {
                     ControlMutex::Unit => "unit".to_string(),
-                    ControlMutex::System => "system".to_string(),
-                    ControlMutex::Startup => "none".to_string(),
+                    ControlMutex::SystemTurn => "system".to_string(),
+                    ControlMutex::Startup => "startup".to_string(),
+                    ControlMutex::SystemReward => "reward".to_string(),
                 };
                 text_data.sections[0].value = lmao;
             }
@@ -453,7 +454,7 @@ fn evread_combat_button(
 }
 
 /// Draw skill context window, showing more infomation about the selected skill
-fn draw_skill_context(
+fn draw_skill_info(
     mut commands: Commands,
     mut ev_skillcontext: EventReader<OpenSkillContextEvent>,
     skill_q: Query<
@@ -472,87 +473,79 @@ fn draw_skill_context(
     // TODO: complete with info text and window size + placements
     // TODO: this block should be processed in parser.rs and reused
     for ev in ev_skillcontext.iter() {
-        if let Ok((name, dmg, block, heal, channel, target_type)) = skill_q.get(ev.skill_ent.0) {
-            let mut desc = String::new();
-            if let Some(dmg) = dmg {
-                desc.push_str(&dmg.get_description());
-            }
-            if let Some(block) = block {
-                desc.push_str(&block.get_description());
-            }
-            if let Some(heal) = heal {
-                desc.push_str(&heal.get_description());
-            }
-            if let Some(channel) = channel {
-                desc.push_str(&channel.get_description());
-            }
-            let target = format!("{:?}", target_type);
-            desc.push('\n');
-            desc.push_str(&target);
+        let (name, dmg, block, heal, channel, target_type) = skill_q.get(ev.skill_ent.0).expect("skillent carried by the event should exist");
 
-            // TODO: can be refactored as events
-            // root note < <Node/Text>(title) <Node/Text>(info)>
-            // 20/80, center alignment title
-            commands
-                // root
-                .spawn(NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        position: UiRect {
-                            left: Val::Px(100.),
-                            top: Val::Px(300.),
-                            ..default()
-                        },
-                        size: Size::new(Val::Px(400.), Val::Px(400.)),
-                        border: UiRect::all(Val::Px(2.)),
-                        flex_direction: FlexDirection::Column,
+        let desc = format!(
+            "{}\n{}\n{}\n{}\n{:?}",
+            &dmg.unwrap_description(),
+            &block.unwrap_description(),
+            &heal.unwrap_description(),
+            &channel.unwrap_description(),
+            &target_type
+        );
+
+        // TODO: can be refactored as events
+        // root note < <Node/Text>(title) <Node/Text>(info)>
+        // 20/80, center alignment title
+        commands
+            // root
+            .spawn(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        left: Val::Px(100.),
+                        top: Val::Px(300.),
                         ..default()
                     },
-                    background_color: Color::NONE.into(),
+                    size: Size::new(Val::Px(400.), Val::Px(400.)),
+                    border: UiRect::all(Val::Px(2.)),
+                    flex_direction: FlexDirection::Column,
                     ..default()
-                })
-                // node/text title
-                // 20% height, center div
-                .with_children(|parent| {
-                    parent
-                        .spawn(NodeBundle {
-                            style: Style {
-                                size: Size::new(Val::Percent(100.), Val::Percent(20.)),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                ..default()
-                            },
-                            background_color: Color::MIDNIGHT_BLUE.into(),
+                },
+                background_color: Color::NONE.into(),
+                ..default()
+            })
+            // node/text title
+            // 20% height, center div
+            .with_children(|parent| {
+                parent
+                    .spawn(NodeBundle {
+                        style: Style {
+                            size: Size::new(Val::Percent(100.), Val::Percent(20.)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
                             ..default()
-                        })
-                        .with_children(|parent| {
-                            parent.spawn(TextBundle::from_section(
-                                name.0.clone(),
-                                textstyle_skill_label(&font_handle),
-                            ));
-                        });
-                })
-                // node/text info
-                .with_children(|parent| {
-                    parent
-                        .spawn(NodeBundle {
-                            style: Style {
-                                size: Size::new(Val::Percent(100.), Val::Percent(80.)),
-                                align_items: AlignItems::FlexStart,
-                                ..default()
-                            },
-                            background_color: Color::PURPLE.into(),
+                        },
+                        background_color: Color::MIDNIGHT_BLUE.into(),
+                        ..default()
+                    })
+                    .with_children(|parent| {
+                        parent.spawn(TextBundle::from_section(
+                            name.0.clone(),
+                            textstyle_skill_label(&font_handle),
+                        ));
+                    });
+            })
+            // node/text info
+            .with_children(|parent| {
+                parent
+                    .spawn(NodeBundle {
+                        style: Style {
+                            size: Size::new(Val::Percent(100.), Val::Percent(80.)),
+                            align_items: AlignItems::FlexStart,
                             ..default()
-                        })
-                        .with_children(|parent| {
-                            parent.spawn(TextBundle::from_section(
-                                desc,
-                                textstyle_skill_label(&font_handle),
-                            ));
-                        });
-                })
-                .insert(ContextWindow);
-        }
+                        },
+                        background_color: Color::PURPLE.into(),
+                        ..default()
+                    })
+                    .with_children(|parent| {
+                        parent.spawn(TextBundle::from_section(
+                            desc,
+                            textstyle_skill_label(&font_handle),
+                        ));
+                    });
+            })
+            .insert(ContextWindow);
     }
 }
 /// Status of the skill context window that opens up when use selects a skill
