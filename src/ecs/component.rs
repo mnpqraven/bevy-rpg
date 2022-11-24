@@ -1,6 +1,5 @@
 //! ===========================================================================
 //! Global components that are being used by different modules
-//! TODO: frequent check + maintenance of visibility scope
 //! ===========================================================================
 
 use bevy::prelude::*;
@@ -62,7 +61,7 @@ pub struct Learned(pub bool);
 ///
 /// carries skill entity id
 #[derive(Component, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct SkillEnt(pub Entity);
+pub struct SkillMeta(pub Entity);
 
 // STATS ============
 /// CP
@@ -72,10 +71,10 @@ pub struct Health(pub i32);
 #[derive(Component, Clone)]
 pub struct MaxHealth(pub i32);
 /// CP
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Mana(pub i32);
 /// CP
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct MaxMana(pub i32);
 /// CP
 #[derive(Component)]
@@ -124,7 +123,7 @@ pub enum TargetPromptStatus {
 
 /// Event { SkillEnt, target, caster }
 pub struct CastSkillEvent {
-    pub skill_ent: SkillEnt,
+    pub skill_ent: SkillMeta,
     pub target: Entity,
     pub caster: Entity,
 }

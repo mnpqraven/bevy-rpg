@@ -1,10 +1,10 @@
 use crate::ecs::component::*;
 use bevy::prelude::*;
 
-use super::UnitKilledEvent;
 use super::EvalChannelingSkillEvent;
 use super::EvalSkillEvent;
 use super::TurnEndEvent;
+use super::UnitKilledEvent;
 use super::WhiteOut;
 
 /// Run change functions to an unit's stat
@@ -33,12 +33,14 @@ pub fn eval_instant_skill(
         eval_damage(skill_damage, target_health, target_block);
         // ------------
         // TODO: Post-eval
-        // NOTE: possible conflict with TurnEndEvent in animate_skill
-        if target_health.0 <= 0 && target_player_tag.is_some() {
-            // EnterWhiteOutEvent
-            commands.entity(target_ent).insert(WhiteOut);
-        } else {
-            ev_enemykilled.send(UnitKilledEvent(target_ent))
+        match target_health.0 {
+            x if x <= 0 && target_player_tag.is_some() => {
+                commands.entity(target_ent).insert(WhiteOut);
+            }
+            x if x <= 0 => {
+                ev_enemykilled.send(UnitKilledEvent(target_ent));
+            }
+            _ => {}
         }
     }
 }

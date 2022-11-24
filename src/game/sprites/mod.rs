@@ -2,7 +2,7 @@ use crate::ecs::component::*;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
-use super::despawn_with;
+use super::{bundle::UnitBundle, despawn_with};
 
 pub struct SpritePlugin;
 impl Plugin for SpritePlugin {
@@ -93,15 +93,15 @@ pub fn spawn_combat_allysp(
             ..default()
         })
         .insert((
-            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
             Player,
-            LabelName("Othi".to_string()),
-            Health(100),
-            MaxHealth(100),
-            Mana(100),
-            MaxMana(100),
-            Speed(0),
-            Block::default(),
+            UnitBundle::new(
+                LabelName("Othi".to_string()),
+                Health(100),
+                Mana(100),
+                Block::default(),
+                Speed(0),
+            ),
+            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
             IsMoving(false),
             CombatSprite,
         ))
@@ -123,15 +123,15 @@ pub fn spawn_combat_allysp(
             ..default()
         })
         .insert((
-            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
             Ally,
-            LabelName("Test ally".to_string()),
-            Health(80),
-            MaxHealth(80),
-            Mana(30),
-            Block::default(),
-            Speed(1),
-            IsMoving(false),
+            UnitBundle::new(
+                LabelName("Test ally".to_string()),
+                Health(80),
+                Mana(30),
+                Block::default(),
+                Speed(1),
+            ),
+            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
             CombatSprite,
         ))
         .id();
@@ -159,15 +159,16 @@ pub fn spawn_combat_enemysp(
             ..default()
         })
         .insert((
-            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
             Enemy,
-            LabelName("training dummy 2".to_string()),
-            Health(9999),
-            MaxHealth(9999),
-            Mana(100),
-            Block(2),
-            Speed(-1),
+            UnitBundle::new(
+                LabelName("training dummy 2".to_string()),
+                Health(20),
+                Mana(100),
+                Block(2),
+                Speed(-1),
+            ),
             CombatSprite,
+            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Once)),
         ))
         .id();
     // debug!("spawned enemy sprite {:?}", _enemy);

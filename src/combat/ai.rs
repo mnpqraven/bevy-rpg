@@ -45,7 +45,7 @@ fn choose_skill(
 
             commands.insert_resource(CurrentCaster(Some(unit_ent)));
             ev_castskill.send(CastSkillEvent {
-                skill_ent: SkillEnt(pool[rng_index].0),
+                skill_ent: SkillMeta(pool[rng_index].0),
                 target: filtered_units[0],
                 caster: unit_ent,
             });

@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use combat::CombatUIPlugin;
 use env::EnvUIPlugin;
 
-use crate::ecs::component::SkillEnt;
+use crate::ecs::component::SkillMeta;
 use self::style::load_fonts;
 
 pub struct UIPlugin;
@@ -28,7 +28,7 @@ struct ContextWindow;
 struct PromptWindow;
 /// Vector of 2, pass true to same_skill_selected if both are equal
 #[derive(Resource, Debug)]
-struct ContextHistory(Option<SkillEnt>);
+struct ContextHistory(Option<SkillMeta>);
 #[derive(Resource, Debug)]
 struct SelectingSkill(Option<Entity>);
 #[derive(Resource, Debug)]

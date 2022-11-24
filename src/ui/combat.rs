@@ -1,5 +1,6 @@
 use super::*;
 use crate::combat::process::gen_target_bucket;
+use crate::ecs::traits::Description;
 use crate::game::despawn_with;
 use crate::{combat::ControlMutex, ecs::component::*};
 use bevy::prelude::*;
@@ -120,7 +121,7 @@ pub fn draw_skill_icons(
                 ));
             })
             // add button specific component meta
-            .insert((Skill, SkillEnt(skill_ent), SkillIcon));
+            .insert((Skill, SkillMeta(skill_ent), SkillIcon));
     }
 }
 
@@ -137,20 +138,19 @@ fn draw_prompt_window(
     current_caster: Res<CurrentCaster>,
     font_handle: Res<FontSheet>,
 ) {
-    let mut index: f32 = 0.;
     let target_type = skill_q
         .get(selecting_skill.0.expect("SelectingSkill resource is emtpy"))
         .expect("ui::combat.rs: can't get target type")
         .clone();
     let targets = gen_target_bucket(unit_q.to_readonly(), target_type, current_caster.0);
-    for unit_ent in targets {
+    for (index, unit_ent) in targets.iter().enumerate() {
         commands
             .spawn(ButtonBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
                         right: Val::Px(200.),
-                        top: Val::Px(200. + index * 60.),
+                        top: Val::Px(200. + index as f32 * 60.),
                         ..default()
                     },
                     size: Size::new(Val::Px(50.), Val::Px(50.)),
@@ -162,12 +162,11 @@ fn draw_prompt_window(
             })
             .with_children(|parent| {
                 parent.spawn(TextBundle::from_section(
-                    name_q.get(unit_ent).unwrap().0.clone(),
+                    name_q.get(*unit_ent).unwrap().0.clone(),
                     textstyle_skill_label(&font_handle),
                 ));
             })
-            .insert((TargetEnt(unit_ent), PromptWindow));
-        index += 1.;
+            .insert((TargetEnt(*unit_ent), PromptWindow));
     }
 }
 /// Draw hp bars of units in combat
@@ -201,7 +200,7 @@ fn draw_hp_bars(
                     position: pos,
                     size: Size::new(Val::Px(50.), Val::Px(50.)),
                     border: UiRect::all(Val::Px(2.)),
-                    flex_direction: FlexDirection::ColumnReverse, // top to bottom
+                    flex_direction: FlexDirection::Column,
                     ..default()
                 },
                 background_color: Color::NONE.into(),
@@ -254,7 +253,7 @@ fn draw_mp_bars(
                     position: pos,
                     size: Size::new(Val::Px(50.), Val::Px(50.)),
                     border: UiRect::all(Val::Px(2.)),
-                    flex_direction: FlexDirection::ColumnReverse, // top to bottom
+                    flex_direction: FlexDirection::Column,
                     ..default()
                 },
                 background_color: Color::NONE.into(),
@@ -306,7 +305,7 @@ fn evread_targetselect(
 ) {
     for target_ent in ev_targetselect.iter() {
         ev_castskill.send(CastSkillEvent {
-            skill_ent: SkillEnt(selecting_skill.0.unwrap()),
+            skill_ent: SkillMeta(selecting_skill.0.unwrap()),
             caster: current_caster.0.unwrap(),
             target: target_ent.0,
         });
@@ -384,13 +383,12 @@ fn mouse_input_interact(
     }
 }
 /// Shows skill context window on 1st click
-///
 /// Opens up prompt window on 2nd click
 fn skill_button_interact(
     context_state: Res<CurrentState<SkillContextStatus>>,
     mut commands: Commands,
     mut button_interaction_q: Query<
-        (&Interaction, &mut BackgroundColor, &SkillEnt),
+        (&Interaction, &mut BackgroundColor, &SkillMeta),
         (Changed<Interaction>, With<Button>, With<Skill>),
     >,
     mut ev_skillcontext: EventWriter<OpenSkillContextEvent>,
@@ -474,16 +472,23 @@ fn draw_skill_context(
     // TODO: complete with info text and window size + placements
     // TODO: this block should be processed in parser.rs and reused
     for ev in ev_skillcontext.iter() {
-        if let Ok((name, _dmg, _block, _heal, channel, target_type)) = skill_q.get(ev.skill_ent.0) {
-            let mut d = String::new();
-            // TODO: generic refactor done -> implement builder
-            match channel {
-                Some(x) if x.0 > 1 => d = format!("Channels for {} turns\n", channel.unwrap().0),
-                Some(_) => d = format!("Channels for {} turn\n", channel.unwrap().0),
-                None => {}
+        if let Ok((name, dmg, block, heal, channel, target_type)) = skill_q.get(ev.skill_ent.0) {
+            let mut desc = String::new();
+            if let Some(dmg) = dmg {
+                desc.push_str(&dmg.get_description());
+            }
+            if let Some(block) = block {
+                desc.push_str(&block.get_description());
+            }
+            if let Some(heal) = heal {
+                desc.push_str(&heal.get_description());
+            }
+            if let Some(channel) = channel {
+                desc.push_str(&channel.get_description());
             }
             let target = format!("{:?}", target_type);
-            let skill_description = format!("{}\n{}", d, target);
+            desc.push('\n');
+            desc.push_str(&target);
 
             // TODO: can be refactored as events
             // root note < <Node/Text>(title) <Node/Text>(info)>
@@ -500,7 +505,7 @@ fn draw_skill_context(
                         },
                         size: Size::new(Val::Px(400.), Val::Px(400.)),
                         border: UiRect::all(Val::Px(2.)),
-                        flex_direction: FlexDirection::Column, // top to bottom
+                        flex_direction: FlexDirection::Column,
                         ..default()
                     },
                     background_color: Color::NONE.into(),
@@ -541,7 +546,7 @@ fn draw_skill_context(
                         })
                         .with_children(|parent| {
                             parent.spawn(TextBundle::from_section(
-                                skill_description,
+                                desc,
                                 textstyle_skill_label(&font_handle),
                             ));
                         });
@@ -559,7 +564,7 @@ pub enum SkillContextStatus {
 /// Event { SkillEnt }
 /// opens the skill context window with the bound skill_ent when the event is called
 struct OpenSkillContextEvent {
-    skill_ent: SkillEnt,
+    skill_ent: SkillMeta,
 }
 struct CombatButtonEvent;
 struct TargetPromptEvent;

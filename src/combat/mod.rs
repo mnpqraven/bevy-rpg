@@ -107,25 +107,28 @@ fn animate_skill(
     >,
     caster: Res<CurrentCaster>,
 ) {
-    config.timer.tick(time.delta());
-    if !config.timer.just_finished() {
-        // animation phase
-        // TODO: refactor to sprite module
+    if !texture_q.is_empty() {
         let (mut animation_timer, mut sprite, handle) = texture_q
             .get_mut(caster.0.expect("no casting entity found"))
             .expect("no texture with combatsprite found");
-        animation_timer.tick(time.delta());
-        if animation_timer.just_finished() {
-            let texture_atlas = texture_atlases.get(handle).unwrap();
-            // next index in sprite sheet
-            sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
-            animation_timer.reset();
+        config.timer.tick(time.delta());
+        if !config.timer.just_finished() {
+            // animation phase
+            // TODO: refactor to sprite module
+            animation_timer.tick(time.delta());
+            if animation_timer.just_finished() {
+                let texture_atlas = texture_atlases.get(handle).unwrap();
+                // next index in sprite sheet
+                sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
+                animation_timer.reset();
+            }
+            // TODO: go back to first sprite index
+        } else {
+            // sending event, prep for exiting ControlMutex::System
+            sprite.index = 0;
+            ev_endturn.send(TurnEndEvent);
+            config.timer.reset();
         }
-        // TODO: go back to first sprite index
-    } else {
-        // sending event, prep for exiting ControlMutex::System
-        ev_endturn.send(TurnEndEvent);
-        config.timer.reset();
     }
 }
 // ----------------------------------------------------------------------------
@@ -146,6 +149,9 @@ fn eval_turn_start(
     info!("[ENTER] ControlMutex::Unit: eval_turn_start");
     info!("TurnStart for {:?}", turn_order.get_current());
     info!("TurnOrderList debug {:?}", turn_order);
+    // update resource
+    commands.insert_resource(CurrentCaster(turn_order.get_current().ok().copied()));
+
     let (unit_player_tag, _, _) = unit_tag_q
         .get(*turn_order.get_current().expect("turn order vec is blank"))
         .expect("should have at least 1 unit result");
