@@ -2,6 +2,7 @@ mod ai;
 mod eval;
 pub mod process;
 pub mod setup;
+mod tests;
 use crate::combat::eval::{eval_block, eval_damage, eval_heal};
 use crate::ecs::component::*;
 use crate::game::despawn_with;

@@ -64,7 +64,6 @@ pub fn eval_channeling_skill(
     }
 }
 
-// NOTE: return type ?
 /// Updates the target's block according to the skill's block stat
 pub fn eval_block(skill_block: Option<&Block>, mut target_block: &mut Block) {
     if let Some(skill_block) = skill_block {
