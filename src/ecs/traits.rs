@@ -19,6 +19,7 @@ pub trait OptionDescription {
     fn unwrap_description(&self) -> String;
 }
 
+impl_stat!(i32, Health, Mana, MaxHealth, MaxMana);
 impl_stat!(i32, Heal, Block, Damage);
 impl_stat!(u32, Channel);
 

@@ -27,18 +27,23 @@ pub struct LabelName(pub String);
 /// CP
 ///
 /// denotes the targetting type that the character's skill can have effect on
+/// taking sides into account, aka EnemyAOE will mean the user's side when it's
+/// the enemies' turn
 #[derive(Component, Debug, Serialize, Deserialize, Clone)]
 #[serde(rename = "target")]
 pub enum Target {
-    Player,
+    // user's side
     AllyAndSelf,
     AllyButSelf,
     AllyAOE,
-    Enemy,
+    // enemy side
+    EnemyAndSelf,
+    EnemyButSelf,
     EnemyAOE,
-    Any,
-    AnyButSelf,
-    NoneButSelf,
+    OnlySelf,   // the skill caster
+    Any,        // any unit present
+    AnyButSelf, // any other unit present
+    All,        // aoe
 }
 /// CP
 ///
@@ -52,19 +57,21 @@ pub enum SkillGroup {
     Universal,
 }
 #[derive(Component)]
+pub struct SkillGroupList(pub Vec<SkillGroup>);
+#[derive(Component)]
 pub struct LearnableArchetypes(pub Vec<UnitArchetype>);
 // Zone1Enemy
 #[derive(Component, Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 #[serde(rename = "learnable_archetypes")]
 pub enum UnitArchetype {
-    PlayerRoot, // root before player can branch out to the trinity skill trees
+    PlayerRoot,       // root before player can branch out to the trinity skill trees
     PlayerSkillTree1, //placeholder tree for trinity role dmg
     PlayerSkillTree2, //tank tree
     PlayerSkillTree3, //healer tree
     EnemyZone1,
     EnemyZone2,
     AllyRoot,
-    AllyHealer
+    AllyHealer,
 }
 /// CP, tag
 #[derive(Component, Debug)]

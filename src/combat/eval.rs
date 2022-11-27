@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use super::EvalChannelingSkillEvent;
 use super::EvalSkillEvent;
 use super::TurnEndEvent;
+use super::UIBarChangeEvent;
 use super::UnitKilledEvent;
 use super::WhiteOut;
 
@@ -16,11 +17,12 @@ pub fn eval_instant_skill(
         (With<Skill>, Without<Player>, Without<Enemy>),
     >,
     mut ev_evalskill: EventReader<EvalSkillEvent>,
+    mut ev_updatebars: EventWriter<UIBarChangeEvent>,
     mut ev_enemykilled: EventWriter<UnitKilledEvent>,
     mut commands: Commands,
 ) {
-    info!("ControlMutex::System: eval_instant_skill");
     for ev in ev_evalskill.iter() {
+        info!("ControlMutex::System: eval_instant_skill");
         let (target_ent, mut target_health, mut target_block, target_player_tag) =
             target.get_mut(ev.target).expect("can't find target entity");
         let (skill_block, skill_damage, skill_heal) =
@@ -33,6 +35,11 @@ pub fn eval_instant_skill(
         eval_damage(skill_damage, target_health, target_block);
         // ------------
         // TODO: Post-eval
+        info!("Target's remaining health: {}", target_health.0);
+
+        ev_updatebars.send(UIBarChangeEvent {
+            master_unit: target_ent,
+        });
         match target_health.0 {
             x if x <= 0 && target_player_tag.is_some() => {
                 commands.entity(target_ent).insert(WhiteOut);
@@ -51,8 +58,8 @@ pub fn eval_channeling_skill(
     mut ev_evalskill: EventReader<EvalChannelingSkillEvent>,
     mut ev_endturn: EventWriter<TurnEndEvent>,
 ) {
-    info!("ControlMutex::System: eval_channeling_skill");
     for _ in ev_evalskill.iter() {
+        info!("ControlMutex::System: eval_channeling_skill");
         ev_endturn.send(TurnEndEvent);
     }
 }

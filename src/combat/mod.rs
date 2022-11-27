@@ -1,11 +1,11 @@
 mod ai;
 mod eval;
 pub mod process;
+pub mod setup;
 use crate::combat::eval::{eval_block, eval_damage, eval_heal};
 use crate::ecs::component::*;
 use crate::game::despawn_with;
 use crate::game::sprites::{spawn_combat_allysp, spawn_combat_enemysp};
-use crate::ui::CurrentCaster;
 use bevy::prelude::*;
 use iyes_loopless::prelude::*;
 
@@ -53,14 +53,25 @@ impl Plugin for CombatPlugin {
             })
             .insert_resource(process::TurnOrderList::<Entity, Speed>::new())
             // States
-            .add_enter_system(ControlMutex::Unit, eval_turn_start)
-            .add_exit_system(ControlMutex::Unit, despawn_with::<SkillIcon>)
             .add_enter_system_set(
-                ControlMutex::SystemTurn,
-                ConditionSet::new()
+                ControlMutex::Unit,
+                SystemSet::new()
+                    .label("eval_turn_start")
+                    .with_system(eval_turn_start),
+            )
+            .add_enter_system_set(
+                ControlMutex::Unit,
+                SystemSet::new()
+                    .label("setup_resource")
+                    .before("eval_turn_start")
+                    // .with_system(setup_resource),
+            )
+            .add_exit_system(ControlMutex::Unit, despawn_with::<SkillIcon>)
+            .add_system_set(
+                // ControlMutex::SystemTurn,
+                SystemSet::new()
                     .with_system(eval::eval_instant_skill)
-                    .with_system(eval::eval_channeling_skill)
-                    .into(),
+                    .with_system(eval::eval_channeling_skill),
             )
             .add_enter_system_set(
                 ControlMutex::SystemReward,
@@ -76,7 +87,7 @@ impl Plugin for CombatPlugin {
                     .with_system(spawn_combat_enemysp)
                     .into(),
             )
-            .add_enter_system(GameState::InCombat, process::gen_turn_order)
+            .add_enter_system(GameState::InCombat, setup::setup_turn_order)
             // Events
             .add_event::<EnterWhiteOutEvent>()
             .add_event::<ChooseAISkillEvent>()
@@ -110,11 +121,11 @@ fn animate_skill(
         ),
         With<CombatSprite>,
     >,
-    caster: Res<CurrentCaster>,
+    turn_order: Res<TurnOrderList<Entity, Speed>>,
 ) {
     if !texture_q.is_empty() {
         let (mut animation_timer, mut sprite, handle) = texture_q
-            .get_mut(caster.0.expect("no casting entity found"))
+            .get_mut(*turn_order.get_current().expect("TurnOrderList should have data by now"))
             .expect("no texture with combatsprite found");
         config.timer.tick(time.delta());
         if !config.timer.just_finished() {
@@ -154,20 +165,21 @@ fn eval_turn_start(
     info!("[ENTER] ControlMutex::Unit: eval_turn_start");
     info!("TurnStart for {:?}", turn_order.get_current());
     info!("TurnOrderList debug {:?}", turn_order);
-    // update resource
-    commands.insert_resource(CurrentCaster(turn_order.get_current().ok().copied()));
 
-    let (unit_player_tag, _, _) = unit_tag_q
+    let (_, _, unit_enemy_tag) = unit_tag_q
         .get(*turn_order.get_current().expect("turn order vec is blank"))
         .expect("should have at least 1 unit result");
 
-    if unit_player_tag.is_some() {
+    if unit_enemy_tag.is_some() {
+        ev_choose_ai_skill.send(ChooseAISkillEvent);
+        // BUG: sending TurnEndEvent here messes up ordering
+        // TODO: test to make sure this omit is correct
+        // ev_endturn.send(TurnEndEvent);
+    } else {
         // opens skill wheel (hacky)
         commands.insert_resource(NextState(SkillWheelStatus::Open));
         for (unit_ent, mut unit_channel, unit_casting) in &mut casting_ally_q {
             if unit_channel.0 == 1 {
-                debug!("{:?}", unit_casting.skill_ent);
-
                 let (skill_damage, skill_heal, skill_block) = skill_q
                     .get(unit_casting.skill_ent)
                     .expect("can't get skill from entity id");
@@ -188,11 +200,6 @@ fn eval_turn_start(
                 unit_channel.0 -= 1;
             }
         }
-    } else {
-        ev_choose_ai_skill.send(ChooseAISkillEvent);
-        // BUG: sending TurnEndEvent here messes up ordering
-        // TODO: test to make sure this omit is correct
-        // ev_endturn.send(TurnEndEvent);
     }
 }
 pub struct ChooseAISkillEvent;
@@ -254,6 +261,9 @@ pub struct EvalSkillEvent {
     caster: Entity,
 }
 
+pub struct UIBarChangeEvent {
+    pub master_unit: Entity,
+}
 /// Evaluation event after a channeling skill is cast
 /// * skill: Entity
 /// * channel: Channel

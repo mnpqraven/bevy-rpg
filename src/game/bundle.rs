@@ -7,7 +7,7 @@ use crate::ecs::component::*;
 #[derive(Bundle)]
 pub struct SkillBundle {
     pub name: LabelName,
-    pub skill_group: SkillGroup,
+    pub skill_group: SkillGroupList,
     pub target: Target,
     pub skill: Skill, // tag
 }

@@ -1,6 +1,8 @@
 use super::*;
-use crate::combat::process::gen_target_bucket;
-use crate::ecs::traits::OptionDescription;
+use crate::combat::process::TurnOrderList;
+use crate::combat::UIBarChangeEvent;
+use crate::combat::setup::setup_target_bucket;
+use crate::ecs::traits::{OptionDescription, Stat};
 use crate::game::despawn_with;
 use crate::{combat::ControlMutex, ecs::component::*};
 use bevy::prelude::*;
@@ -14,8 +16,8 @@ impl Plugin for CombatUIPlugin {
             .add_event::<OpenSkillContextEvent>()
             .add_event::<TargetPromptEvent>()
             .add_event::<TargetSelectEvent>()
+            .add_event::<UIBarChangeEvent>()
             .insert_resource(SelectingSkill(None))
-            .insert_resource(CurrentCaster(None))
             .insert_resource(ContextHistory(None))
             .add_startup_system(draw_combat_button)
             .add_system_set(
@@ -26,23 +28,27 @@ impl Plugin for CombatUIPlugin {
             // GameState
             .add_loopless_state(GameState::OutOfCombat)
             .add_loopless_state(SkillWheelStatus::Closed)
+            .add_enter_system_set(SkillWheelStatus::Open,
+                                  SystemSet::new()
+                                  .label("ENTER::SkillWheelStatus::Open")
+                                  .with_system(draw_skill_icons)
+                                  )
             .add_enter_system_set(
-                SkillWheelStatus::Open,
-                ConditionSet::new()
-                    .with_system(draw_skill_icons)
+                GameState::InCombat,
+                SystemSet::new()
                     .with_system(draw_hp_bars)
-                    .with_system(draw_mp_bars)
-                    .into(),
+                    .with_system(draw_mp_bars),
             )
             .add_system(skill_button_interact.run_in_state(GameState::InCombat))
             // SkillContextStatus
             .add_loopless_state(SkillContextStatus::Closed)
             .add_enter_system(SkillContextStatus::Open, draw_skill_info)
-            .add_system(mouse_input_interact)
             .add_system_set(
                 SystemSet::new()
                     .with_system(prompt_window_interact.run_in_state(TargetPromptStatus::Open))
-                    .with_system(evread_targetselect),
+                    .with_system(evread_targetselect)
+                    .with_system(mouse_input_interact)
+                    .with_system(ev_updatebars),
             )
             // TargetPrompt
             .add_loopless_state(TargetPromptStatus::Closed)
@@ -90,25 +96,41 @@ fn draw_combat_button(mut commands: Commands, font_handle: Res<FontSheet>) {
 }
 
 /// Draw skill wheel
+/// BUG: order conflict with process::gen_turnorder
 pub fn draw_skill_icons(
     mut commands: Commands,
     font_handle: Res<FontSheet>,
-    skills_q: Query<(Entity, &LabelName), (With<Skill>, With<Learned>)>,
+    skills_q: Query<(Entity, &LabelName, &Learned, &LearnableArchetypes), With<Skill>>,
+    turnorder: Res<TurnOrderList<Entity, Speed>>,
+    unit_q: Query<&UnitArchetype, Or<(With<Player>, With<Ally>, With<Enemy>)>>,
 ) {
-    for (index, (skill_ent, name)) in skills_q.iter().enumerate() {
+    let current_unit = turnorder.get_current().unwrap();
+    let unit_archetype = unit_q.get(*current_unit).unwrap();
+    for (index, (skill_ent, name, ..)) in skills_q
+        .iter()
+        .filter(|(.., learned, learnables)| {
+            let learned_b = match learned {
+                Learned::Basic => true,
+                Learned::Learned => true,
+                Learned::NotLearned => false,
+            };
+            learned_b && learnables.0.contains(unit_archetype)
+        })
+        .enumerate()
+    {
         commands
             .spawn(ButtonBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
-                        left: Val::Px(40. + index as f32 * 170.),
-                        top: Val::Px(700.),
+                        left: Val::Percent(10. + 10. * index as f32),
+                        bottom: Val::Percent(5.),
                         ..default()
                     },
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     margin: UiRect::all(Val::Auto),
-                    size: Size::new(Val::Px(160.), Val::Px(35.)),
+                    size: Size::new(Val::Percent(10.), Val::Px(35.)),
                     ..default()
                 },
                 background_color: NORMAL_BUTTON.into(),
@@ -135,22 +157,22 @@ fn draw_prompt_window(
     name_q: Query<&LabelName>,
     skill_q: Query<&Target, With<Skill>>,
     selecting_skill: Res<SelectingSkill>,
-    current_caster: Res<CurrentCaster>,
+    turnorder: Res<TurnOrderList<Entity, Speed>>,
     font_handle: Res<FontSheet>,
 ) {
     let target_type = skill_q
         .get(selecting_skill.0.expect("SelectingSkill resource is emtpy"))
         .expect("ui::combat.rs: can't get target type")
         .clone();
-    let targets = gen_target_bucket(unit_q.to_readonly(), target_type, current_caster.0);
+    let targets = setup_target_bucket(unit_q.to_readonly(), target_type, *turnorder.get_current().unwrap(), false);
     for (index, unit_ent) in targets.iter().enumerate() {
         commands
             .spawn(ButtonBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
-                        right: Val::Px(200.),
-                        top: Val::Px(200. + index as f32 * 60.),
+                        right: Val::Percent(10.),
+                        top: Val::Percent(30. + index as f32 * 10.),
                         ..default()
                     },
                     size: Size::new(Val::Px(50.), Val::Px(50.)),
@@ -174,21 +196,27 @@ fn draw_hp_bars(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     unit_q: Query<
-        (&Health, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        (
+            Entity,
+            &Health,
+            Option<&Player>,
+            Option<&Ally>,
+            Option<&Enemy>,
+        ),
         Or<(With<Player>, With<Enemy>, With<Ally>)>,
     >,
 ) {
     // left and right
-    for (index, (unit_health, _, _, enemy_tag)) in unit_q.iter().enumerate() {
+    for (index, (unit_ent, unit_health, _, _, enemy_tag)) in unit_q.iter().enumerate() {
         let pos: UiRect = match enemy_tag {
             Some(_) => UiRect {
                 right: Val::Percent(5.),
-                top: Val::Px(100. + index as f32 * 50.),
+                top: Val::Percent(20. + 5. * index as f32),
                 ..default()
             },
             None => UiRect {
                 left: Val::Percent(5.),
-                top: Val::Px(100. + index as f32 * 50.),
+                top: Val::Percent(20. + 5. * index as f32),
                 ..default()
             },
         };
@@ -210,7 +238,7 @@ fn draw_hp_bars(
             // 20% height, center div
             .with_children(|parent| {
                 parent.spawn(TextBundle::from_section(
-                    unit_health.0.to_string(),
+                    format!("HP: {}", unit_health.0),
                     TextStyle {
                         font: asset_server.load("font.ttf"),
                         font_size: 20.,
@@ -218,7 +246,7 @@ fn draw_hp_bars(
                     },
                 ));
             })
-            .insert(HPBar);
+            .insert((HPBar, UnitMeta(unit_ent)));
     }
 }
 
@@ -227,21 +255,27 @@ fn draw_mp_bars(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     unit_q: Query<
-        (&Mana, Option<&Player>, Option<&Ally>, Option<&Enemy>),
+        (
+            Entity,
+            &Mana,
+            Option<&Player>,
+            Option<&Ally>,
+            Option<&Enemy>,
+        ),
         Or<(With<Player>, With<Enemy>, With<Ally>)>,
     >,
 ) {
     // left and right
-    for (index, (unit_mana, _, _, enemy_tag)) in unit_q.iter().enumerate() {
+    for (index, (unit_ent, unit_mana, _, _, enemy_tag)) in unit_q.iter().enumerate() {
         let pos: UiRect = match enemy_tag {
             Some(_) => UiRect {
-                right: Val::Percent(6.),
-                top: Val::Px(110. + index as f32 * 50.),
+                right: Val::Percent(5.),
+                top: Val::Percent(22. + 5. * index as f32),
                 ..default()
             },
             None => UiRect {
-                left: Val::Percent(6.),
-                top: Val::Px(110. + index as f32 * 50.),
+                left: Val::Percent(5.),
+                top: Val::Percent(22. + 5. * index as f32),
                 ..default()
             },
         };
@@ -263,7 +297,7 @@ fn draw_mp_bars(
             // 20% height, center div
             .with_children(|parent| {
                 parent.spawn(TextBundle::from_section(
-                    unit_mana.0.to_string(),
+                    format!("MP: {}", unit_mana.0),
                     TextStyle {
                         font: asset_server.load("font.ttf"),
                         font_size: 20.,
@@ -271,7 +305,35 @@ fn draw_mp_bars(
                     },
                 ));
             })
-            .insert(MPBar);
+            .insert((MPBar, UnitMeta(unit_ent)));
+    }
+}
+
+fn ev_updatebars(
+    hp_bars_q: Query<(&Children, &UnitMeta), With<HPBar>>,
+    mp_bars_q: Query<(&Children, &UnitMeta), With<MPBar>>,
+    mut text_q: Query<&mut Text>,
+    unit_q: Query<(Entity, &Health, &Mana), Or<(With<Player>, With<Ally>, With<Enemy>)>>,
+    mut ev_updatebars: EventReader<UIBarChangeEvent>,
+) {
+    for ev in ev_updatebars.iter() {
+        let (unit_ent, unit_hp, unit_mp) = unit_q
+            .get(ev.master_unit)
+            .expect("UIBarChangeEvent should send a valid unit enitity");
+        for (children, _) in hp_bars_q
+            .iter()
+            .filter(|(_, unit_meta)| unit_meta.0 == unit_ent)
+        {
+            let mut t = text_q.get_mut(children[0]).unwrap();
+            t.sections[0].value = unit_hp.stat().to_string();
+        }
+        for (children, _) in mp_bars_q
+            .iter()
+            .filter(|(_, unit_meta)| unit_meta.0 == unit_ent)
+        {
+            let mut t = text_q.get_mut(children[0]).unwrap();
+            t.sections[0].value = unit_mp.stat().to_string();
+        }
     }
 }
 /// Interaction logic for targetting window
@@ -296,17 +358,17 @@ fn prompt_window_interact(
     }
 }
 
-/// Listens @a target  is selected from the prompt window
+/// Listens @a target is selected from the prompt window
 fn evread_targetselect(
     mut ev_targetselect: EventReader<TargetSelectEvent>,
     mut ev_castskill: EventWriter<CastSkillEvent>,
     selecting_skill: Res<SelectingSkill>,
-    current_caster: Res<CurrentCaster>,
+    turnorder: Res<TurnOrderList<Entity, Speed>>
 ) {
     for target_ent in ev_targetselect.iter() {
         ev_castskill.send(CastSkillEvent {
             skill_ent: SkillMeta(selecting_skill.0.unwrap()),
-            caster: current_caster.0.unwrap(),
+            caster: *turnorder.get_current().unwrap(),
             target: target_ent.0,
         });
     }
@@ -328,7 +390,6 @@ fn combat_button_interact(
     >,
     mut text_q: Query<&mut Text>,
     mut ev_buttonclick: EventWriter<CombatButtonEvent>,
-    mut commands: Commands,
     current_control_mutex: Res<CurrentState<ControlMutex>>,
 ) {
     for (interaction, mut color, children) in &mut interaction_q {
@@ -338,7 +399,6 @@ fn combat_button_interact(
                 text_data.sections[0].value = "clicked".to_string();
                 *color = PRESSED_BUTTON.into();
                 ev_buttonclick.send(CombatButtonEvent);
-                commands.insert_resource(NextState(SkillWheelStatus::Open));
             }
             Interaction::Hovered => {
                 text_data.sections[0].value = "hovered".to_string();
@@ -394,7 +454,7 @@ fn skill_button_interact(
     >,
     mut ev_skillcontext: EventWriter<OpenSkillContextEvent>,
     mut history: ResMut<ContextHistory>,
-    player_q: Query<Entity, With<Player>>,
+    // turnorder: Res<TurnOrderList<Entity, Speed>>,
 ) {
     for (interaction, mut color, skill_ent) in &mut button_interaction_q {
         match *interaction {
@@ -403,11 +463,8 @@ fn skill_button_interact(
                 match context_state.0 {
                     // same skill selected > open prompt window
                     SkillContextStatus::Open if history.0 == Some(*skill_ent) => {
+                        // if valid_manacost(skill_ent, caster)
                         commands.insert_resource(SelectingSkill(Some(skill_ent.0)));
-                        // NOTE: caster resource is hardcoded to only player rn
-                        // TODO: modular
-                        commands
-                            .insert_resource(CurrentCaster(Some(player_q.get_single().unwrap())));
                         commands.insert_resource(NextState(SkillContextStatus::Closed));
                         commands.insert_resource(NextState(SkillWheelStatus::Closed));
                         commands.insert_resource(NextState(TargetPromptStatus::Open));
@@ -473,7 +530,9 @@ fn draw_skill_info(
     // TODO: complete with info text and window size + placements
     // TODO: this block should be processed in parser.rs and reused
     for ev in ev_skillcontext.iter() {
-        let (name, dmg, block, heal, channel, target_type) = skill_q.get(ev.skill_ent.0).expect("skillent carried by the event should exist");
+        let (name, dmg, block, heal, channel, target_type) = skill_q
+            .get(ev.skill_ent.0)
+            .expect("skillent carried by the event should exist");
 
         let desc = format!(
             "{}\n{}\n{}\n{}\n{:?}",
@@ -484,7 +543,6 @@ fn draw_skill_info(
             &target_type
         );
 
-        // TODO: can be refactored as events
         // root note < <Node/Text>(title) <Node/Text>(info)>
         // 20/80, center alignment title
         commands
@@ -493,11 +551,11 @@ fn draw_skill_info(
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
-                        left: Val::Px(100.),
-                        top: Val::Px(300.),
+                        left: Val::Percent(35.),
+                        top: Val::Percent(20.),
                         ..default()
                     },
-                    size: Size::new(Val::Px(400.), Val::Px(400.)),
+                    size: Size::new(Val::Percent(30.), Val::Percent(60.)),
                     border: UiRect::all(Val::Px(2.)),
                     flex_direction: FlexDirection::Column,
                     ..default()
