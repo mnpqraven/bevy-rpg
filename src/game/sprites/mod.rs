@@ -94,6 +94,7 @@ pub fn spawn_combat_allysp(
         })
         .insert((
             Player,
+            UnitArchetype::PlayerRoot, // hardcode for now
             UnitBundle::new(
                 LabelName("Othi".to_string()),
                 Health(100),
@@ -124,6 +125,7 @@ pub fn spawn_combat_allysp(
         })
         .insert((
             Ally,
+            UnitArchetype::AllyRoot,
             UnitBundle::new(
                 LabelName("Test ally".to_string()),
                 Health(80),
@@ -160,6 +162,7 @@ pub fn spawn_combat_enemysp(
         })
         .insert((
             Enemy,
+            UnitArchetype::EnemyZone1,
             UnitBundle::new(
                 LabelName("training dummy 2".to_string()),
                 Health(20),

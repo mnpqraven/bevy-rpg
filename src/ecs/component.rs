@@ -51,17 +51,40 @@ pub enum SkillGroup {
     Enemy,
     Universal,
 }
+#[derive(Component)]
+pub struct LearnableArchetypes(pub Vec<UnitArchetype>);
+// Zone1Enemy
+#[derive(Component, Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[serde(rename = "learnable_archetypes")]
+pub enum UnitArchetype {
+    PlayerRoot, // root before player can branch out to the trinity skill trees
+    PlayerSkillTree1, //placeholder tree for trinity role dmg
+    PlayerSkillTree2, //tank tree
+    PlayerSkillTree3, //healer tree
+    EnemyZone1,
+    EnemyZone2,
+    AllyRoot,
+    AllyHealer
+}
 /// CP, tag
 #[derive(Component, Debug)]
 pub struct Skill;
 /// CP
-#[derive(Component)]
-pub struct Learned(pub bool);
+#[derive(Component, Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename = "learned")]
+pub enum Learned {
+    Basic,
+    Learned,
+    NotLearned,
+}
 /// CP
 ///
 /// carries skill entity id
 #[derive(Component, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SkillMeta(pub Entity);
+/// carries unit entity id
+#[derive(Component, Debug, Copy, Clone, PartialEq, Eq)]
+pub struct UnitMeta(pub Entity);
 
 // STATS ============
 /// CP
@@ -86,8 +109,7 @@ pub struct Block(pub i32);
 #[derive(Component, Debug)]
 pub struct Heal(pub i32);
 /// CP
-#[derive(Component, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(Clone, Copy)]
+#[derive(Component, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Speed(pub i32);
 /// CP
 ///

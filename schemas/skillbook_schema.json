@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema",
     "title": "Skill Data Table Schema",
-    "description": "YAML schema for skill table Vec<SkillDataTable>",
+    "description": "YAML schema for skill table Vec<SkillDataTable>,\nThe required fields are 'label_name', 'skill_group', 'target', 'learnable_archetypes', 'learned'\nLook at parser.rs for the full list of available fields",
     "type": "array",
     "items": {
         "type": "object",
@@ -35,6 +35,19 @@
                 ],
                 "description": "The skill's target type.\nValues:\nPlayer | AnyButSelf | NoneButSelf |\n Ally | AllyButSelf | AllyAOE |\n Enemy | EnemyAOE | Any"
             },
+            "learnable_archetypes": {
+                "type": "array",
+                "description": "vector of components pointing at archetypes\ne.g [ Zone1Enemy, Zone3Enemy, AllyArchetype1]"
+            },
+            "learned": {
+                "type": "string",
+                "description": "Whether if the skill is learned",
+                "oneOf": [
+                    { "const": "Basic" },
+                    { "const": "Learned" },
+                    { "const": "NotLearned" }
+                ]
+            },
             "mana": {
                 "type": "integer",
                 "description": "Default mana cost, a negative value would restore mana instead"
@@ -56,12 +69,8 @@
                 "type": "integer",
                 "minimum": 1,
                 "description": "Amount of turns the caster needs to be idle before activating, minimum value is 1 which will make the skill cast at the start of the caster's next turn"
-            },
-            "learned": {
-                "type": "boolean",
-                "description": "Whether if the skill is learned"
             }
         },
-        "required": [ "label_name", "skill_group", "target" ]
+        "required": [ "label_name", "skill_group", "target", "learnable_archetypes", "learned" ]
     }
 }

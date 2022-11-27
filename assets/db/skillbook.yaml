@@ -4,38 +4,50 @@
   skill_group: Universal
   target: Enemy
   damage: 7
-  learned: true
+  learnable_archetypes: [ PlayerRoot, AllyRoot ]
+  learned: Basic
 - label_name: Basic block
   skill_group: Universal
   target: Player
   block: 5
-  learned: true
+  learnable_archetypes: [ PlayerRoot, AllyRoot ]
+  learned: Basic
 - label_name: Basic heal
   skill_group: Universal
   target: AllyAndSelf
   heal: 5
-  learned: true
+  learnable_archetypes: [ PlayerRoot, AllyRoot ]
+  learned: Basic
 - label_name: Bash
   skill_group: Player
   target: Enemy
   mana: 25
   damage: 12
-  learned: true
+  learnable_archetypes: [ PlayerRoot ]
+  learned: Basic
 - label_name: Greater heal
   skill_group: Ally
   target: AllyAndSelf
+  learnable_archetypes: [ AllyRoot ]
+  learned: Basic
   heal: 12
 - label_name: Poke
   skill_group: Ally
   target: Enemy
+  learnable_archetypes: [ AllyRoot ]
+  learned: Basic
   heal: 3
 - label_name: Bite
   skill_group: Enemy
   target: AllyAndSelf
+  learnable_archetypes: [ EnemyZone1 ]
+  learned: Basic
   damage: 13
 - label_name: Claw
   skill_group: Enemy
   target: AllyAndSelf
+  learnable_archetypes: [ EnemyZone1 ]
+  learned: Basic
   damage: 10
 - label_name: Triage
   skill_group: Player
@@ -43,11 +55,13 @@
   mana: 10
   heal: 15
   channel: 1
-  learned: true
+  learnable_archetypes: [ PlayerRoot ]
+  learned: NotLearned
 - label_name: Supernova
   skill_group: Player
   target: EnemyAOE
   mana: 30
   damage: 50
   channel: 3
-  learned: true
+  learnable_archetypes: [ PlayerRoot ]
+  learned: Learned
