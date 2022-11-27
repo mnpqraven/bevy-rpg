@@ -1,64 +1,72 @@
-# TODO: skill_group field should be aray
 ---
 - label_name: Basic Strike
-  skill_group: Universal
-  target: Enemy
+  skill_group: [ Universal ]
+  target: EnemyButSelf
   damage: 7
   learnable_archetypes: [ PlayerRoot, AllyRoot ]
   learned: Basic
+
 - label_name: Basic block
-  skill_group: Universal
-  target: Player
+  skill_group: [ Universal ]
+  target: EnemyButSelf
   block: 5
   learnable_archetypes: [ PlayerRoot, AllyRoot ]
   learned: Basic
+
 - label_name: Basic heal
-  skill_group: Universal
+  skill_group: [ Universal ]
   target: AllyAndSelf
   heal: 5
   learnable_archetypes: [ PlayerRoot, AllyRoot ]
   learned: Basic
+
 - label_name: Bash
-  skill_group: Player
-  target: Enemy
+  skill_group: [ Player ]
+  target: EnemyButSelf
   mana: 25
   damage: 12
   learnable_archetypes: [ PlayerRoot ]
   learned: Basic
+
 - label_name: Greater heal
-  skill_group: Ally
+  skill_group: [ Ally ]
   target: AllyAndSelf
   learnable_archetypes: [ AllyRoot ]
   learned: Basic
   heal: 12
+
 - label_name: Poke
-  skill_group: Ally
-  target: Enemy
+  skill_group: [ Ally ]
+  target: EnemyButSelf
   learnable_archetypes: [ AllyRoot ]
   learned: Basic
-  heal: 3
+  damage: 3
+
 - label_name: Bite
-  skill_group: Enemy
-  target: AllyAndSelf
+  skill_group: [ Enemy ]
+  target: EnemyButSelf
   learnable_archetypes: [ EnemyZone1 ]
   learned: Basic
   damage: 13
+
 - label_name: Claw
-  skill_group: Enemy
-  target: AllyAndSelf
+  skill_group: [ Enemy ]
+  target: EnemyButSelf
   learnable_archetypes: [ EnemyZone1 ]
   learned: Basic
   damage: 10
+
 - label_name: Triage
-  skill_group: Player
+  skill_group: [ Player ]
   target: AllyAndSelf
   mana: 10
   heal: 15
   channel: 1
   learnable_archetypes: [ PlayerRoot ]
   learned: NotLearned
+
 - label_name: Supernova
-  skill_group: Player
+  skill_group: [ Player ]
   target: EnemyAOE
   mana: 30
   damage: 50

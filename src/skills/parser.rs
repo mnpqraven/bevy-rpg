@@ -13,10 +13,11 @@ use std::fs;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SkillEntry {
     pub label_name: String,
-    pub skill_group: SkillGroup,
+    pub skill_group: Vec<SkillGroup>,
     pub target: Target,
-    pub learnable_archetypes: Vec<UnitArchetype>, // used as filter for units
-                                                  // (units also have UnitArchetype)
+    // used as filter for units
+    // (units also have UnitArchetype)
+    pub learnable_archetypes: Vec<UnitArchetype>,
     pub learned: Learned, // tristate, basic: starter skills, Learned, unlearned
     pub mana: Option<i32>,
     pub damage: Option<i32>,

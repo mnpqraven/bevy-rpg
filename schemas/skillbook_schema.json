@@ -11,27 +11,34 @@
                 "description": "Name of the skill"
             },
             "skill_group": {
-                "type": "string",
-                "oneOf": [
-                    { "const": "Player" },
-                    { "const": "Ally" },
-                    { "const": "Enemy" },
-                    { "const": "Universal" }
+                "type": "array",
+                "anyOf": [
+                    {
+                        "items": {
+                            "oneOf": [
+                                { "const": "Player" },
+                                { "const": "Ally" },
+                                { "const": "Enemy" },
+                                { "const": "Universal" }
+                            ]
+                        }
+                    }
                 ],
                 "description": "The skill's original user group.\nValues:\nAlly | Enemy | Universal"
             },
             "target": {
                 "type": "string",
                 "oneOf": [
-                    { "const": "Player" },
-                    { "const": "AnyButSelf" },
-                    { "const": "NoneButSelf" },
                     { "const": "AllyAndSelf" },
                     { "const": "AllyButSelf" },
                     { "const": "AllyAOE" },
-                    { "const": "Enemy" },
+                    { "const": "EnemyAndSelf" },
+                    { "const": "EnemyButSelf" },
                     { "const": "EnemyAOE" },
-                    { "const": "Any" }
+                    { "const": "OnlySelf" },
+                    { "const": "Any" },
+                    { "const": "AnyButSelf" },
+                    { "const": "All" }
                 ],
                 "description": "The skill's target type.\nValues:\nPlayer | AnyButSelf | NoneButSelf |\n Ally | AllyButSelf | AllyAOE |\n Enemy | EnemyAOE | Any"
             },
@@ -71,6 +78,12 @@
                 "description": "Amount of turns the caster needs to be idle before activating, minimum value is 1 which will make the skill cast at the start of the caster's next turn"
             }
         },
-        "required": [ "label_name", "skill_group", "target", "learnable_archetypes", "learned" ]
+        "required": [
+            "label_name",
+            "skill_group",
+            "target",
+            "learnable_archetypes",
+            "learned"
+        ]
     }
 }
